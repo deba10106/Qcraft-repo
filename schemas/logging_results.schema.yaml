@@ -1,0 +1,26 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+properties:
+  logging:
+    type: object
+    properties:
+      level:
+        type: string
+      log_to_file:
+        type: boolean
+      log_file_path:
+        type: string
+      log_to_stdout:
+        type: boolean
+    additionalProperties: true
+  results:
+    type: object
+    properties:
+      storage_dir:
+        type: string
+      export_formats:
+        type: array
+        items:
+          type: string
+    additionalProperties: true
+additionalProperties: true

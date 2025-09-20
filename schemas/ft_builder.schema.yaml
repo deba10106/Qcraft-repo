@@ -1,0 +1,26 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+properties:
+  enable_code_switching:
+    type: boolean
+  export_formats:
+    type: array
+    items:
+      type: string
+  code_switching_protocols:
+    type: array
+    items:
+      type: object
+      required: [name, supported_gates]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        supported_gates:
+          type: array
+          items:
+            type: string
+      additionalProperties: true
+required: [export_formats]
+additionalProperties: true

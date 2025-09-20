@@ -1,0 +1,48 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+# Schema for a single IBM device entry (not the full devices file)
+required: [device_name, max_qubits, native_gates, qubit_connectivity]
+properties:
+  provider_name:
+    type: string
+    const: ibm
+  name:
+    type: string
+  device_name:
+    type: string
+  max_qubits:
+    type: integer
+    minimum: 1
+  native_gates:
+    type: array
+    items:
+      type: string
+  qubit_connectivity:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: integer
+  connectivity:
+    type: object
+    additionalProperties:
+      type: array
+      items:
+        type: integer
+  qubit_positions:
+    type: object
+    additionalProperties:
+      type: array
+      minItems: 2
+      maxItems: 2
+      items:
+        type: number
+  device_limits:
+    type: object
+    additionalProperties: true
+  topology_type:
+    type: string
+  qubit_properties:
+    type: object
+    additionalProperties: true
+additionalProperties: true

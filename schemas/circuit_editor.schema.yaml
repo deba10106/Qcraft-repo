@@ -1,0 +1,28 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+# Editor configuration for circuit_designer
+required: []
+properties:
+  default_num_qubits:
+    type: integer
+    minimum: 1
+  default_max_qubits:
+    type: integer
+    minimum: 1
+  max_qubits:
+    type: integer
+    minimum: 1
+  grid_size:
+    type: integer
+    minimum: 1
+  color_scheme:
+    type: object
+    additionalProperties: true
+    properties:
+      background:
+        type: string
+      wire:
+        type: string
+      selected:
+        type: string
+additionalProperties: true

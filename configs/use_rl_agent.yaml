@@ -1,0 +1,3 @@
+use_rl_agent:
+  enabled: true
+  agent_type: "multi_patch" 

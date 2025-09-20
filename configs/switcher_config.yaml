@@ -1,0 +1,14 @@
+switching_protocols:
+  - name: magic_state_injection
+    enabled: true
+    supported_gates: ["T", "Tdg"]
+    ancilla_qubits: 1
+    error_threshold: 0.01
+  - name: lattice_surgery
+    enabled: true
+    supported_gates: ["CNOT", "Toffoli"]
+    min_distance: 3
+    max_time_steps: 5
+  - name: teleportation
+    enabled: true
+    supported_gates: ["SWAP"] 

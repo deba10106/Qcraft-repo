@@ -1,0 +1,8 @@
+logging:
+  level: INFO
+  log_to_file: true
+  log_file_path: logs/app.log
+  log_to_stdout: true
+results:
+  storage_dir: results/
+  export_formats: ["json", "csv", "yaml"] 

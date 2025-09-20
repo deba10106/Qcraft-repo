@@ -1,0 +1,65 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [optimization_strategy]
+properties:
+  optimization_passes:
+    type: array
+    items:
+      type: object
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+      additionalProperties: true
+  optimization_strategy:
+    type: string
+    enum: [rule_based, rl, ml, hybrid]
+  rl_config:
+    type: object
+    properties:
+      n_envs:
+        type: integer
+        minimum: 1
+      vec_strategy:
+        type: string
+        enum: [subproc, dummy, none]
+      learning_rate:
+        type: number
+        exclusiveMinimum: 0
+      num_episodes:
+        type: integer
+        minimum: 1
+      action_space_size:
+        type: integer
+        minimum: 1
+      reward_weights:
+        type: object
+      normalize_reward:
+        type: boolean
+      curriculum:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+          schedule:
+            type: array
+            items:
+              type: integer
+          difficulty:
+            type: array
+            items:
+              type: string
+        additionalProperties: true
+    additionalProperties: true
+  system:
+    type: object
+    properties:
+      log_level:
+        type: string
+      output_dir:
+        type: string
+      random_seed:
+        type: integer
+    additionalProperties: true
+additionalProperties: true

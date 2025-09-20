@@ -1,0 +1,17 @@
+PySide6
+PyYAML
+jsonschema
+qiskit>=1.0
+qiskit-aer
+qiskit-ibm-runtime
+python-dotenv
+networkx
+matplotlib
+numpy
+stable-baselines3
+scikit-learn
+pandas
+torch
+gymnasium
+stim
+pymatching

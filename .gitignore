@@ -1,0 +1,136 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pylint.d/
+
+# Type checker / formatter caches
+ruff_cache/
+.pyre/
+.pytype/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Sphinx / MkDocs docs
+docs/_build/
+site/
+
+# Translations
+*.mo
+*.pot
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Environments
+.env
+.env.*
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Local settings / secrets
+*.pem
+*.key
+*.crt
+*.p12
+
+# Logs & results
+logs/
+*.log
+results/
+outputs/
+outputs/runs/
+run/
+
+# RL/ML artifacts
+checkpoints/
+artifacts/
+models/
+*.pt
+*.pth
+*.ckpt
+*.onnx
+# Stable-Baselines3 policies
+*.zip
+
+# Matplotlib cache
+.matplotlib/
+
+# OS files
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.orig
+
+# Node (if present in UI tooling)
+node_modules/
+*.tsbuildinfo
+
+# Qiskit / cache (if created)
+.qiskit/
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+~$*

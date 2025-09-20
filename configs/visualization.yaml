@@ -1,0 +1,51 @@
+colors:
+  data_qubit_color: "#4287f5"
+  ancilla_x_color: "#42f54b"
+  ancilla_z_color: "#f542aa"
+  edge_color: "#666666"
+  device_node_color: "#1f77b4"
+  device_edge_color: "#aaaaaa"
+  overlay_edge_color: "#ff7f0e"
+  overlay_node_color: "#2ca02c"
+  label_color: "#000000"
+  title_color: "#000000"
+
+patch_colors:
+  - "#e41a1c"
+  - "#377eb8"
+  - "#4daf4a"
+  - "#984ea3"
+  - "#ff7f00"
+  - "#ffff33"
+  - "#a65628"
+  - "#f781bf"
+
+sizes:
+  node_size: 300
+  selected_node_size: 400
+  edge_width: 2
+  selected_edge_width: 3
+  font_size:
+    labels: 10
+    titles: 14
+    legend: 12
+
+interactive:
+  zoom_base_scale: 1.2
+  pan_sensitivity: 0.5
+  selection_highlight_color: "#ff0000"
+  hover_alpha: 0.7
+  selected_alpha: 1.0
+
+layout:
+  spring_k: 1.0
+  spring_iterations: 50
+  patch_boundary_padding: 0.2
+  patch_boundary_alpha: 0.5
+  patch_boundary_linewidth: 2.0
+
+figure:
+  dpi: 100
+  width: 12
+  height: 8
+  subplot_spacing: 0.3 

@@ -1,0 +1,5 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+# Schema placeholder for workflow_policy which currently shares the same config as multi_patch_rl_agent
+# Keep permissive to avoid blocking while configs evolve
+additionalProperties: true

@@ -1,0 +1,33 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [switching_protocols]
+properties:
+  switching_protocols:
+    type: array
+    items:
+      type: object
+      required: [name, enabled, supported_gates]
+      properties:
+        name:
+          type: string
+          enum: [magic_state_injection, lattice_surgery, teleportation]
+        enabled:
+          type: boolean
+        supported_gates:
+          type: array
+          items:
+            type: string
+        ancilla_qubits:
+          type: integer
+          minimum: 0
+        error_threshold:
+          type: number
+          minimum: 0
+        min_distance:
+          type: integer
+          minimum: 1
+        max_time_steps:
+          type: integer
+          minimum: 1
+      additionalProperties: true
+additionalProperties: true

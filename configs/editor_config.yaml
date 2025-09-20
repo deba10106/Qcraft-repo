@@ -1,0 +1,7 @@
+default_max_qubits: 5
+max_qubits: 50
+grid_size: 40
+color_scheme:
+  background: "#0F2747"   # Dark blue
+  wire: "#FFFFFF"         # White lines
+  selected: "#2E86FF"     # Blue highlight

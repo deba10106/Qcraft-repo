@@ -1,0 +1,12 @@
+enable_code_switching: true
+export_formats:
+  - qasm
+  - json
+  - yaml
+code_switching_protocols:
+  - name: magic_state_injection
+    description: "Injects magic states for T gates."
+    supported_gates: ["T", "Tdg"]
+  - name: lattice_surgery
+    description: "Lattice surgery for CNOT and other multi-qubit gates."
+    supported_gates: ["CNOT"] 

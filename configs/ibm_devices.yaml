@@ -1,0 +1,450 @@
+ibm_devices:
+  - device_name: mock_ibm_falcon
+    provider_name: ibm
+    model_name: Falcon
+    topology_type: heavy-hex
+    max_qubits: 5
+    qubit_connectivity:
+      0: [1, 2]
+      1: [0, 2, 3]
+      2: [0, 1, 4]
+      3: [1, 4]
+      4: [2, 3]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.01
+      id: 0.0001
+      rz: 0.0002
+      sx: 0.0003
+      x: 0.0004
+    qubit_properties:
+      0: {T1: 100e-6, T2: 80e-6, readout_error: 0.01}
+      1: {T1: 110e-6, T2: 90e-6, readout_error: 0.012}
+      2: {T1: 105e-6, T2: 85e-6, readout_error: 0.011}
+      3: {T1: 98e-6, T2: 78e-6, readout_error: 0.013}
+      4: {T1: 102e-6, T2: 82e-6, readout_error: 0.014}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 5
+      max_circuit_depth: 1000
+  - device_name: ibmq_belem
+    provider_name: ibm
+    model_name: Belem
+    topology_type: heavy-hex
+    max_qubits: 5
+    qubit_connectivity:
+      0: [1]
+      1: [0, 2]
+      2: [1, 3]
+      3: [2, 4]
+      4: [3]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.013
+      id: 0.00012
+      rz: 0.00022
+      sx: 0.00032
+      x: 0.00042
+    qubit_properties:
+      0: {T1: 110e-6, T2: 90e-6, readout_error: 0.012}
+      1: {T1: 115e-6, T2: 95e-6, readout_error: 0.013}
+      2: {T1: 112e-6, T2: 92e-6, readout_error: 0.014}
+      3: {T1: 108e-6, T2: 88e-6, readout_error: 0.015}
+      4: {T1: 109e-6, T2: 89e-6, readout_error: 0.016}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 5
+      max_circuit_depth: 1000
+  - device_name: ibmq_jakarta
+    provider_name: ibm
+    model_name: Jakarta
+    topology_type: heavy-hex
+    max_qubits: 10
+    qubit_connectivity:
+      0: [1, 5]
+      1: [0, 2]
+      2: [1, 3, 7]
+      3: [2, 4]
+      4: [3, 9]
+      5: [0, 6]
+      6: [5, 7]
+      7: [2, 6, 8]
+      8: [7, 9]
+      9: [4, 8]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.012
+      id: 0.00011
+      rz: 0.00021
+      sx: 0.00031
+      x: 0.00041
+    qubit_properties:
+      0: {T1: 120e-6, T2: 100e-6, readout_error: 0.011}
+      1: {T1: 118e-6, T2: 98e-6, readout_error: 0.012}
+      2: {T1: 119e-6, T2: 99e-6, readout_error: 0.013}
+      3: {T1: 117e-6, T2: 97e-6, readout_error: 0.014}
+      4: {T1: 116e-6, T2: 96e-6, readout_error: 0.015}
+      5: {T1: 115e-6, T2: 95e-6, readout_error: 0.012}
+      6: {T1: 114e-6, T2: 94e-6, readout_error: 0.013}
+      7: {T1: 113e-6, T2: 93e-6, readout_error: 0.014}
+      8: {T1: 112e-6, T2: 92e-6, readout_error: 0.015}
+      9: {T1: 111e-6, T2: 91e-6, readout_error: 0.016}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 10
+      max_circuit_depth: 1500
+  - device_name: ibmq_mumbai
+    provider_name: ibm
+    model_name: Mumbai
+    topology_type: heavy-hex
+    max_qubits: 15
+    qubit_connectivity:
+      0: [1, 5]
+      1: [0, 2]
+      2: [1, 3, 7]
+      3: [2, 4]
+      4: [3, 9]
+      5: [0, 6, 10]
+      6: [5, 7]
+      7: [2, 6, 8, 12]
+      8: [7, 9]
+      9: [4, 8, 14]
+      10: [5, 11]
+      11: [10, 12]
+      12: [7, 11, 13]
+      13: [12, 14]
+      14: [9, 13]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.011
+      id: 0.00010
+      rz: 0.00020
+      sx: 0.00030
+      x: 0.00040
+    qubit_properties:
+      0: {T1: 130e-6, T2: 110e-6, readout_error: 0.010}
+      1: {T1: 128e-6, T2: 108e-6, readout_error: 0.011}
+      2: {T1: 129e-6, T2: 109e-6, readout_error: 0.012}
+      3: {T1: 127e-6, T2: 107e-6, readout_error: 0.013}
+      4: {T1: 126e-6, T2: 106e-6, readout_error: 0.014}
+      5: {T1: 125e-6, T2: 105e-6, readout_error: 0.011}
+      6: {T1: 124e-6, T2: 104e-6, readout_error: 0.012}
+      7: {T1: 123e-6, T2: 103e-6, readout_error: 0.013}
+      8: {T1: 122e-6, T2: 102e-6, readout_error: 0.014}
+      9: {T1: 121e-6, T2: 101e-6, readout_error: 0.015}
+      10: {T1: 120e-6, T2: 100e-6, readout_error: 0.011}
+      11: {T1: 119e-6, T2: 99e-6, readout_error: 0.012}
+      12: {T1: 118e-6, T2: 98e-6, readout_error: 0.013}
+      13: {T1: 117e-6, T2: 97e-6, readout_error: 0.014}
+      14: {T1: 116e-6, T2: 96e-6, readout_error: 0.015}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 15
+      max_circuit_depth: 2000
+  - device_name: mock_ibm_eagle
+    provider_name: ibm
+    model_name: Eagle
+    topology_type: heavy-hex
+    max_qubits: 15
+    qubit_connectivity:
+      0: [1, 5]
+      1: [0, 2, 6]
+      2: [1, 3, 7]
+      3: [2, 4, 8]
+      4: [3, 9]
+      5: [0, 6, 10]
+      6: [1, 5, 7, 11]
+      7: [2, 6, 8, 12]
+      8: [3, 7, 9, 13]
+      9: [4, 8, 14]
+      10: [5, 11]
+      11: [6, 10, 12]
+      12: [7, 11, 13]
+      13: [8, 12, 14]
+      14: [9, 13]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.008
+      id: 0.00009
+      rz: 0.00018
+      sx: 0.00025
+      x: 0.00035
+    qubit_properties:
+      0: {T1: 120e-6, T2: 100e-6, readout_error: 0.009}
+      1: {T1: 125e-6, T2: 105e-6, readout_error: 0.010}
+      2: {T1: 123e-6, T2: 103e-6, readout_error: 0.011}
+      3: {T1: 119e-6, T2: 99e-6, readout_error: 0.012}
+      4: {T1: 121e-6, T2: 101e-6, readout_error: 0.013}
+      5: {T1: 118e-6, T2: 98e-6, readout_error: 0.010}
+      6: {T1: 124e-6, T2: 104e-6, readout_error: 0.011}
+      7: {T1: 122e-6, T2: 102e-6, readout_error: 0.012}
+      8: {T1: 120e-6, T2: 100e-6, readout_error: 0.013}
+      9: {T1: 119e-6, T2: 99e-6, readout_error: 0.014}
+      10: {T1: 117e-6, T2: 97e-6, readout_error: 0.010}
+      11: {T1: 123e-6, T2: 103e-6, readout_error: 0.011}
+      12: {T1: 121e-6, T2: 101e-6, readout_error: 0.012}
+      13: {T1: 120e-6, T2: 100e-6, readout_error: 0.013}
+      14: {T1: 118e-6, T2: 98e-6, readout_error: 0.014}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 15
+      max_circuit_depth: 2000
+  - device_name: mock_ibm_hummingbird
+    provider_name: ibm
+    model_name: Hummingbird
+    topology_type: heavy-hex
+    max_qubits: 25
+    qubit_connectivity:
+      0: [1, 5]
+      1: [0, 2, 6]
+      2: [1, 3, 7]
+      3: [2, 4, 8]
+      4: [3, 9]
+      5: [0, 6, 10]
+      6: [1, 5, 7, 11]
+      7: [2, 6, 8, 12]
+      8: [3, 7, 9, 13]
+      9: [4, 8, 14]
+      10: [5, 11, 15]
+      11: [6, 10, 12, 16]
+      12: [7, 11, 13, 17]
+      13: [8, 12, 14, 18]
+      14: [9, 13, 19]
+      15: [10, 16, 20]
+      16: [11, 15, 17, 21]
+      17: [12, 16, 18, 22]
+      18: [13, 17, 19, 23]
+      19: [14, 18, 24]
+      20: [15, 21]
+      21: [16, 20, 22]
+      22: [17, 21, 23]
+      23: [18, 22, 24]
+      24: [19, 23]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.009
+      id: 0.00011
+      rz: 0.00021
+      sx: 0.00028
+      x: 0.00038
+    qubit_properties:
+      0: {T1: 130e-6, T2: 110e-6, readout_error: 0.008}
+      1: {T1: 132e-6, T2: 112e-6, readout_error: 0.009}
+      2: {T1: 131e-6, T2: 111e-6, readout_error: 0.010}
+      3: {T1: 129e-6, T2: 109e-6, readout_error: 0.011}
+      4: {T1: 128e-6, T2: 108e-6, readout_error: 0.012}
+      5: {T1: 127e-6, T2: 107e-6, readout_error: 0.013}
+      6: {T1: 126e-6, T2: 106e-6, readout_error: 0.014}
+      7: {T1: 125e-6, T2: 105e-6, readout_error: 0.015}
+      8: {T1: 124e-6, T2: 104e-6, readout_error: 0.016}
+      9: {T1: 123e-6, T2: 103e-6, readout_error: 0.017}
+      10: {T1: 122e-6, T2: 102e-6, readout_error: 0.018}
+      11: {T1: 121e-6, T2: 101e-6, readout_error: 0.019}
+      12: {T1: 120e-6, T2: 100e-6, readout_error: 0.020}
+      13: {T1: 119e-6, T2: 99e-6, readout_error: 0.021}
+      14: {T1: 118e-6, T2: 98e-6, readout_error: 0.022}
+      15: {T1: 117e-6, T2: 97e-6, readout_error: 0.023}
+      16: {T1: 116e-6, T2: 96e-6, readout_error: 0.024}
+      17: {T1: 115e-6, T2: 95e-6, readout_error: 0.025}
+      18: {T1: 114e-6, T2: 94e-6, readout_error: 0.026}
+      19: {T1: 113e-6, T2: 93e-6, readout_error: 0.027}
+      20: {T1: 112e-6, T2: 92e-6, readout_error: 0.028}
+      21: {T1: 111e-6, T2: 91e-6, readout_error: 0.029}
+      22: {T1: 110e-6, T2: 90e-6, readout_error: 0.030}
+      23: {T1: 109e-6, T2: 89e-6, readout_error: 0.031}
+      24: {T1: 108e-6, T2: 88e-6, readout_error: 0.032}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 25
+      max_circuit_depth: 3000
+  - device_name: ibm_hummingbird
+    provider_name: ibm
+    model_name: Hummingbird
+    topology_type: heavy-hex
+    max_qubits: 65
+    qubit_connectivity:
+      0: [1, 6]
+      1: [0, 2, 7]
+      2: [1, 3, 8]
+      3: [2, 4, 9]
+      4: [3, 5, 10]
+      5: [4, 11]
+      6: [0, 7, 12]
+      7: [1, 6, 8, 13]
+      8: [2, 7, 9, 14]
+      9: [3, 8, 10, 15]
+      10: [4, 9, 11, 16]
+      11: [5, 10, 17]
+      12: [6, 13, 18]
+      13: [7, 12, 14, 19]
+      14: [8, 13, 15, 20]
+      15: [9, 14, 16, 21]
+      16: [10, 15, 17, 22]
+      17: [11, 16, 23]
+      18: [12, 19, 24]
+      19: [13, 18, 20, 25]
+      20: [14, 19, 21, 26]
+      21: [15, 20, 22, 27]
+      22: [16, 21, 23, 28]
+      23: [17, 22, 29]
+      24: [18, 25, 30]
+      25: [19, 24, 26, 31]
+      26: [20, 25, 27, 32]
+      27: [21, 26, 28, 33]
+      28: [22, 27, 29, 34]
+      29: [23, 28, 35]
+      30: [24, 31, 36]
+      31: [25, 30, 32, 37]
+      32: [26, 31, 33, 38]
+      33: [27, 32, 34, 39]
+      34: [28, 33, 35, 40]
+      35: [29, 34, 41]
+      36: [30, 37, 42]
+      37: [31, 36, 38, 43]
+      38: [32, 37, 39, 44]
+      39: [33, 38, 40, 45]
+      40: [34, 39, 41, 46]
+      41: [35, 40, 47]
+      42: [36, 43, 48]
+      43: [37, 42, 44, 49]
+      44: [38, 43, 45, 50]
+      45: [39, 44, 46, 51]
+      46: [40, 45, 47, 52]
+      47: [41, 46, 53]
+      48: [42, 49, 54]
+      49: [43, 48, 50, 55]
+      50: [44, 49, 51, 56]
+      51: [45, 50, 52, 57]
+      52: [46, 51, 53, 58]
+      53: [47, 52, 59]
+      54: [48, 55, 60]
+      55: [49, 54, 56, 61]
+      56: [50, 55, 57, 62]
+      57: [51, 56, 58, 63]
+      58: [52, 57, 59, 64]
+      59: [53, 58]
+      60: [54, 61]
+      61: [55, 60, 62]
+      62: [56, 61, 63]
+      63: [57, 62, 64]
+      64: [58, 63]
+    native_gates:
+      - cx
+      - id
+      - rz
+      - sx
+      - x
+    gate_error_rates:
+      cx: 0.009
+      id: 0.00011
+      rz: 0.00021
+      sx: 0.00028
+      x: 0.00038
+    qubit_properties:
+      0: {T1: 130e-6, T2: 110e-6, readout_error: 0.008}
+      1: {T1: 132e-6, T2: 112e-6, readout_error: 0.009}
+      2: {T1: 131e-6, T2: 111e-6, readout_error: 0.010}
+      3: {T1: 129e-6, T2: 109e-6, readout_error: 0.011}
+      4: {T1: 128e-6, T2: 108e-6, readout_error: 0.012}
+      5: {T1: 127e-6, T2: 107e-6, readout_error: 0.013}
+      6: {T1: 126e-6, T2: 106e-6, readout_error: 0.014}
+      7: {T1: 125e-6, T2: 105e-6, readout_error: 0.015}
+      8: {T1: 124e-6, T2: 104e-6, readout_error: 0.016}
+      9: {T1: 123e-6, T2: 103e-6, readout_error: 0.017}
+      10: {T1: 122e-6, T2: 102e-6, readout_error: 0.018}
+      11: {T1: 121e-6, T2: 101e-6, readout_error: 0.019}
+      12: {T1: 120e-6, T2: 100e-6, readout_error: 0.020}
+      13: {T1: 119e-6, T2: 99e-6, readout_error: 0.021}
+      14: {T1: 118e-6, T2: 98e-6, readout_error: 0.022}
+      15: {T1: 117e-6, T2: 97e-6, readout_error: 0.023}
+      16: {T1: 116e-6, T2: 96e-6, readout_error: 0.024}
+      17: {T1: 115e-6, T2: 95e-6, readout_error: 0.025}
+      18: {T1: 114e-6, T2: 94e-6, readout_error: 0.026}
+      19: {T1: 113e-6, T2: 93e-6, readout_error: 0.027}
+      20: {T1: 112e-6, T2: 92e-6, readout_error: 0.028}
+      21: {T1: 111e-6, T2: 91e-6, readout_error: 0.029}
+      22: {T1: 110e-6, T2: 90e-6, readout_error: 0.030}
+      23: {T1: 109e-6, T2: 89e-6, readout_error: 0.031}
+      24: {T1: 108e-6, T2: 88e-6, readout_error: 0.032}
+      # Auto-generated qubit properties for qubits 25-64
+      25: {T1: 108e-6, T2: 88e-6, readout_error: 0.033}
+      26: {T1: 108e-6, T2: 88e-6, readout_error: 0.034}
+      27: {T1: 108e-6, T2: 88e-6, readout_error: 0.035}
+      28: {T1: 108e-6, T2: 88e-6, readout_error: 0.036}
+      29: {T1: 108e-6, T2: 88e-6, readout_error: 0.037}
+      30: {T1: 108e-6, T2: 88e-6, readout_error: 0.038}
+      31: {T1: 108e-6, T2: 88e-6, readout_error: 0.039}
+      32: {T1: 108e-6, T2: 88e-6, readout_error: 0.040}
+      33: {T1: 108e-6, T2: 88e-6, readout_error: 0.041}
+      34: {T1: 108e-6, T2: 88e-6, readout_error: 0.042}
+      35: {T1: 108e-6, T2: 88e-6, readout_error: 0.043}
+      36: {T1: 108e-6, T2: 88e-6, readout_error: 0.044}
+      37: {T1: 108e-6, T2: 88e-6, readout_error: 0.045}
+      38: {T1: 108e-6, T2: 88e-6, readout_error: 0.046}
+      39: {T1: 108e-6, T2: 88e-6, readout_error: 0.047}
+      40: {T1: 108e-6, T2: 88e-6, readout_error: 0.048}
+      41: {T1: 108e-6, T2: 88e-6, readout_error: 0.049}
+      42: {T1: 108e-6, T2: 88e-6, readout_error: 0.050}
+      43: {T1: 108e-6, T2: 88e-6, readout_error: 0.051}
+      44: {T1: 108e-6, T2: 88e-6, readout_error: 0.052}
+      45: {T1: 108e-6, T2: 88e-6, readout_error: 0.053}
+      46: {T1: 108e-6, T2: 88e-6, readout_error: 0.054}
+      47: {T1: 108e-6, T2: 88e-6, readout_error: 0.055}
+      48: {T1: 108e-6, T2: 88e-6, readout_error: 0.056}
+      49: {T1: 108e-6, T2: 88e-6, readout_error: 0.057}
+      50: {T1: 108e-6, T2: 88e-6, readout_error: 0.058}
+      51: {T1: 108e-6, T2: 88e-6, readout_error: 0.059}
+      52: {T1: 108e-6, T2: 88e-6, readout_error: 0.060}
+      53: {T1: 108e-6, T2: 88e-6, readout_error: 0.061}
+      54: {T1: 108e-6, T2: 88e-6, readout_error: 0.062}
+      55: {T1: 108e-6, T2: 88e-6, readout_error: 0.063}
+      56: {T1: 108e-6, T2: 88e-6, readout_error: 0.064}
+      57: {T1: 108e-6, T2: 88e-6, readout_error: 0.065}
+      58: {T1: 108e-6, T2: 88e-6, readout_error: 0.066}
+      59: {T1: 108e-6, T2: 88e-6, readout_error: 0.067}
+      60: {T1: 108e-6, T2: 88e-6, readout_error: 0.068}
+      61: {T1: 108e-6, T2: 88e-6, readout_error: 0.069}
+      62: {T1: 108e-6, T2: 88e-6, readout_error: 0.070}
+      63: {T1: 108e-6, T2: 88e-6, readout_error: 0.071}
+      64: {T1: 108e-6, T2: 88e-6, readout_error: 0.072}
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 65
+      max_circuit_depth: 5000 

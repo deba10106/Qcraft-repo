@@ -1,0 +1,95 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required:
+  - multi_patch_rl_agent
+properties:
+  multi_patch_rl_agent:
+    type: object
+    required: [environment, agent]
+    properties:
+      environment:
+        type: object
+        properties:
+          provider:
+            type: string
+          device:
+            type: string
+          layout_type:
+            type: string
+            enum: [planar, rotated, color]
+          code_distance:
+            type: integer
+            minimum: 3
+            maximum: 31
+          patch_count:
+            type: integer
+            minimum: 1
+          min_code_distance:
+            type: integer
+            minimum: 3
+        additionalProperties: true
+      agent:
+        type: object
+        properties:
+          algorithm:
+            type: string
+            enum: [ppo]
+          batch_size:
+            type: integer
+            minimum: 1
+          n_steps:
+            type: integer
+            minimum: 1
+          learning_rate:
+            type: number
+            exclusiveMinimum: 0
+          gamma:
+            type: number
+          gae_lambda:
+            type: number
+          ent_coef:
+            type: number
+          vf_coef:
+            type: number
+          n_envs:
+            type: integer
+            minimum: 1
+          total_timesteps:
+            type: integer
+            minimum: 1
+        additionalProperties: true
+      reward_function:
+        type: object
+        properties:
+          weights:
+            type: object
+        additionalProperties: true
+      curriculum_learning:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+          stages:
+            type: array
+            items:
+              type: object
+              properties:
+                patch_count:
+                  type: integer
+                  minimum: 1
+                total_timesteps:
+                  type: integer
+                  minimum: 1
+              additionalProperties: true
+        additionalProperties: true
+      training_artifacts:
+        type: object
+        properties:
+          output_dir:
+            type: string
+          artifact_naming:
+            type: string
+        required: [output_dir]
+        additionalProperties: true
+    additionalProperties: true
+additionalProperties: false

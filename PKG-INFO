@@ -1,0 +1,131 @@
+Metadata-Version: 2.1
+Name: qcraft
+Version: 0.1.6
+Summary: Qcraft: Quantum Circuit Design, Optimization, and Surface Code Mapping Platform
+Author: Debasis Mondal
+Description-Content-Type: text/markdown
+
+# Qcraft: A Modular Platform for Quantum Circuit Optimization and Surface Code Mapping via Reinforcement Learning
+
+## Abstract
+Qcraft is a research-grade, modular desktop application for quantum circuit design, optimization, and surface code mapping. It leverages reinforcement learning (RL) to address the challenges of scalable, hardware-aware quantum compilation and error correction. This work presents the architecture, configurable workflows, and the novel RL-based surface code mapping module, highlighting the scientific motivation, reward function design, and future research directions.
+
+---
+
+## 1. Introduction
+Quantum computing promises exponential speedups for certain problems, but practical realization is hindered by noise, limited connectivity, and hardware constraints. Surface codes are a leading error correction technique, but mapping logical qubits to physical hardware remains a complex, high-dimensional optimization problem. Qcraft addresses this by providing a unified, extensible platform for:
+- Quantum circuit design and editing
+- Hardware-aware circuit optimization
+- RL-driven surface code mapping
+- Artifact management and reproducibility
+- **Curriculum Learning**: Progressive training with increasing difficulty, dynamic reward weighting, and robust convergence.
+- **Hardware Awareness**: Supports IBM devices (IonQ in progress), native gate sets, and device-specific constraints.
+- **Modular and Configurable**: YAML/JSON-driven configuration for all workflows, environments, and training parameters.
+- **Logging and Artifact Management**: Automated tracking of training runs, metrics, and model artifacts for reproducibility.
+
+---
+
+## Installation
+
+### Requirements
+- **Python:** 3.9–3.11 (3.11 recommended)
+- **CUDA:** 12.4 (required for RL training with surface code agents)
+- **Tested on:** Linux, NVIDIA RTX 3070, CUDA 12.4, IBM Q devices
+
+### Install from PyPI
+```bash
+pip install qcraft
+```
+
+### Installation
+
+#### Option 1: Install from PyPI (Recommended)
+```bash
+pip install qcraft
+```
+
+#### Option 2: Install from GitHub Release Tarball
+Download the latest `qcraft-<version>.tar.gz` from [https://github.com/deba10106/Qcraft.git](https://github.com/deba10106/Qcraft.git) (see Releases tab), then install with:
+
+```bash
+pip install /path/to/qcraft-<version>.tar.gz
+```
+
+**Note:**
+- Python 3.9–3.11 supported (3.11 recommended)
+- CUDA 12.4 required for RL training
+
+---
+
+## Usage
+
+### Main GUI
+```bash
+qcraft
+```
+
+### Usage
+
+To launch the Qcraft desktop application, simply run:
+
+```bash
+qcraft
+```
+
+---
+
+## Reward Functions: Overview
+
+### Surface Code Multi-Patch Agent
+- **Highly configurable reward function**: Encourages valid mappings, hardware connectivity, adjacency, resource utilization, error minimization, and logical correctness.
+- **Curriculum learning**: Dynamic reward weights and phase multipliers across training stages.
+- **See** `configs/multi_patch_rl_agent.yaml` for all tunable parameters.
+
+### Circuit Optimization Module
+- **Reward engine**: Penalizes gate count, depth, and SWAPs; rewards native gate usage and penalizes invalid gates.
+- **Curriculum learning**: Difficulty and reward weights progress as training advances.
+- **See** `configs/optimizer_config.yaml` for all tunable parameters.
+
+---
+
+## Configuration and Customization
+
+- All major workflows and RL environments are configured via YAML files in the `configs/` directory.
+- **Surface Code Agent:** `configs/multi_patch_rl_agent.yaml`
+- **Circuit Optimization Agent:** `configs/optimizer_config.yaml`
+- **Device/Hardware:** `configs/ibm_devices.yaml`, `configs/ionq_devices.yaml`
+- **Other:** Logging, visualization, and more via their respective YAML files.
+
+---
+
+## Packaging and PyPI Publishing
+
+To build and publish your own version:
+```bash
+# Clean previous builds
+rm -rf dist/*
+
+# Build the package
+python3 setup.py sdist bdist_wheel
+
+# Check the package
+pip install twine
+
+# Upload to PyPI
+twine upload dist/*
+```
+
+---
+
+## Support and Extensibility
+- Qcraft is modular and extensible for new devices, reward functions, and optimization passes.
+- Contributions and feedback are welcome for further research and development.
+
+---
+
+## Citation
+If you use Qcraft in academic work, please cite the corresponding paper or this repository.
+
+---
+
+For detailed technical documentation, architecture, and workflow explanations, please refer to the full README in the source repository.

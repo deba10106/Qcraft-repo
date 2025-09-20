@@ -1,0 +1,29 @@
+ionq_devices:
+  - device_name: ionq_aria
+    provider_name: IonQ
+    model_name: Aria
+    topology_type: all_to_all
+    qubit_connectivity:
+      # All-to-all connectivity for 32 qubits
+      0: [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
+      1: [0,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31]
+      # ... (repeat for all qubits up to 31, or use a script to generate)
+    native_gates:
+      - X
+      - Y
+      - Z
+      - MS
+    gate_error_rates:
+      X: 0.002
+      Y: 0.002
+      Z: 0.002
+      MS: 0.002
+    qubit_properties:
+      0: {T1: 100e-3, T2: 80e-3, readout_error: 0.02}
+      1: {T1: 100e-3, T2: 80e-3, readout_error: 0.02}
+      # ... (repeat for all qubits up to 31)
+    calibration_data:
+      last_update: 2024-06-01
+    device_limits:
+      max_qubits: 32
+      max_circuit_depth: 10000 

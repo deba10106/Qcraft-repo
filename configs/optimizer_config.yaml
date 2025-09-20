@@ -1,0 +1,40 @@
+optimization_passes:
+- enabled: true
+  name: gate_fusion
+- enabled: true
+  name: commutation
+- enabled: true
+  max_swaps: 10
+  name: swap_insertion
+- enabled: true
+  method: asap
+  name: scheduling
+- enabled: true
+  name: qubit_mapping
+  strategy: sabre
+optimization_strategy: rl
+rl_config:
+  n_envs: 4
+  vec_strategy: subproc
+  learning_rate: 0.0001
+  num_episodes: 1000
+  n_envs: 1
+  action_space_size: 8
+  reward_weights:
+    gate_count: -1.0
+    depth: -0.5
+    swap_count: -2.0
+    native_gate_bonus: 1.0
+    invalid_gate_penalty: -5.0
+  normalize_reward: true   # Enable running mean/std normalization for reward
+  curriculum:
+    enabled: true
+    schedule: [50, 100, 200]   # Number of episodes per curriculum level
+    difficulty: ["easy", "medium", "hard"]  # Example curriculum levels (optional, can be expanded)
+supervised_config:
+  library: pytorch
+  model_path: models/circuit_optimizer_nn.pt
+system:
+  log_level: INFO
+  output_dir: ./outputs
+  random_seed: 42

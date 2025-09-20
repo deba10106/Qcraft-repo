@@ -1,0 +1,12 @@
+config_registry:
+  hardware: "configs/hardware.json"
+  ibm_devices: "configs/ibm_devices.yaml"
+  ionq_devices: "configs/ionq_devices.yaml"
+  circuit_editor: "configs/editor_config.yaml"
+  optimization: "configs/optimizer_config.yaml"
+  code_switcher: "configs/switcher_config.yaml"
+  logging_results: "configs/logging.yaml"
+  workflow_policy: "configs/multi_patch_rl_agent.yaml"
+  multi_patch_rl_agent: "configs/multi_patch_rl_agent.yaml"
+  gates: "configs/gates.yaml"
+  ft_builder: "configs/ft_builder_config.yaml"

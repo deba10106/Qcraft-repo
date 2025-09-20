@@ -1,0 +1,9 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [provider_name, device_name]
+properties:
+  provider_name:
+    type: string
+  device_name:
+    type: string
+additionalProperties: true

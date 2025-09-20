@@ -1,0 +1,85 @@
+multi_patch_rl_agent:
+  environment:
+    provider: ibm
+    device: ibm_hummingbird
+    patch_count: 2
+    seed: 42
+  agent:
+    algorithm: ppo
+    policy: MlpPolicy
+    learning_rate: 0.0003
+    batch_size: 64
+    n_steps: 2048
+    gamma: 0.99
+    gae_lambda: 0.95
+    ent_coef: 0.01
+    vf_coef: 0.5
+    max_grad_norm: 0.5
+    clip_range: 0.2
+    total_timesteps: 1000000
+    save_interval: 10000
+    resume_from_checkpoint: null
+  reward_function:
+    valid_mapping: 10.0
+    invalid_mapping: -20.0
+    overlap_penalty: -5.0
+    connectivity_bonus: 2.0
+    adjacency_bonus: 1.0
+    inter_patch_distance_penalty: -1.0
+    resource_utilization_bonus: 0.5
+    error_rate_bonus: 1.0
+    logical_operator_bonus: 1.0
+    fully_mapped_bonus: 2.0
+    mapped_qubit_bonus: 0.1
+    unmapped_qubit_penalty: -0.05
+    connected_bonus: 1.0
+    disconnected_graph_penalty: -0.1
+    normalization: running_mean_std
+    normalization_constant: 10.0
+    dynamic_weights: true
+    phase_multipliers:
+      hardware_adaptation_gate_error: 2.0
+      hardware_adaptation_swap: 2.0
+      noise_aware_logical_error: 2.5
+      structure_mastery_stabilizer: 3.0
+    custom_terms: []
+  curriculum_learning:
+    enabled: true
+    stages:
+      - patch_count: 2
+        code_distance: 3
+        layout_type: rotated
+        max_steps: 200
+        total_timesteps: 100000
+        reward_weights:
+          connectivity_bonus: 0.2
+          adjacency_bonus: 0.2
+          error_rate_bonus: 0.0
+          logical_operator_bonus: 2.0
+          fully_mapped_bonus: 2.0
+      - patch_count: 2
+        code_distance: 3
+        layout_type: rotated
+        max_steps: 300
+        total_timesteps: 200000
+        reward_weights:
+          connectivity_bonus: 0.5
+          adjacency_bonus: 0.5
+          error_rate_bonus: 1.0
+          logical_operator_bonus: 0.5
+          fully_mapped_bonus: 0.5
+      - patch_count: 3
+        code_distance: 3
+        layout_type: rotated
+        max_steps: 400
+        total_timesteps: 300000
+        reward_weights:
+          connectivity_bonus: 1.0
+          adjacency_bonus: 1.0
+          error_rate_bonus: 2.0
+          logical_operator_bonus: 1.0
+          fully_mapped_bonus: 0.5
+    schedule: linear
+  training_artifacts:
+    output_dir: ./outputs/training_artifacts
+    artifact_naming: "{provider}_{device}_{layout_type}_d{code_distance}_patches{patch_count}_stage{curriculum_stage}_sb3_ppo_surface_code_{timestamp}.zip" 

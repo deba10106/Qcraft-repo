@@ -1,0 +1,57 @@
+gates:
+  - name: X
+    symbol: "X"
+    arity: 1
+    color: "#FFAA00"
+  - name: CNOT
+    symbol: "⊕"
+    arity: 2
+    color: "#00AAFF"
+  - name: H
+    symbol: "H"
+    arity: 1
+    color: "#00FFAA"
+  - name: T
+    symbol: "T"
+    arity: 1
+    color: "#AA00FF"
+  - name: S
+    symbol: "S"
+    arity: 1
+    color: "#FF00AA"
+  - name: SWAP
+    symbol: "SWAP"
+    arity: 2
+    color: "#AAAAAA"
+  - name: Y
+    symbol: "Y"
+    arity: 1
+    color: "#FF5555"
+  - name: Z
+    symbol: "Z"
+    arity: 1
+    color: "#5555FF"
+  - name: CZ
+    symbol: "CZ"
+    arity: 2
+    color: "#55FF55"
+  - name: RX
+    symbol: "RX"
+    arity: 1
+    color: "#FFD700"
+  - name: RY
+    symbol: "RY"
+    arity: 1
+    color: "#ADFF2F"
+  - name: RZ
+    symbol: "RZ"
+    arity: 1
+    color: "#40E0D0" 
+  - name: MEASURE
+    symbol: "M"
+    arity: 1
+    color: "#888888"
+  - name: RESET
+    symbol: "R"
+    arity: 1
+    color: "#4444AA" 

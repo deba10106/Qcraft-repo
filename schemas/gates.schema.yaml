@@ -1,0 +1,21 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [gates]
+properties:
+  gates:
+    type: array
+    items:
+      type: object
+      required: [name, arity]
+      properties:
+        name:
+          type: string
+        symbol:
+          type: string
+        arity:
+          type: integer
+          minimum: 1
+        color:
+          type: string
+      additionalProperties: true
+additionalProperties: true

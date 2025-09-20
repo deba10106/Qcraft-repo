@@ -1,0 +1,15 @@
+include requirements.txt
+recursive-include configs *.yaml *.json
+recursive-include circuit_designer *.ui *.py
+recursive-include scode *.yaml *.json
+recursive-include scode *.py 
+recursive-include schemas *.py 
+recursive-include orchestrator_controller *.py 
+recursive-include logging_results *.py
+recursive-include hardware_abstraction *.py
+recursive-include fault_tolerant_circuit_builder *.py
+recursive-include execution_simulation *.py
+recursive-include configuration_management *.py
+recursive-include code_switcher *.py
+recursive-include circuit_optimization *.py
+exclude .env 

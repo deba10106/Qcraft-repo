@@ -1,0 +1,287 @@
+openapi: 3.1.0
+info:
+  title: QCraft API
+  version: 0.1.0
+  description: |
+    Proposed API for the QCraft Compiler OS, Adaptive QEC, and Runtime modules.
+    This spec is aligned with final_tsd.md section "APIs (v0)".
+servers:
+  - url: http://localhost:8080
+    description: Local development server (example)
+paths:
+  /compile:
+    post:
+      summary: Compile a logical circuit IR into a provider-ready job package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompileRequest'
+            examples:
+              default:
+                value:
+                  ir:
+                    version: "1.0"
+                    qubits: 4
+                    clbits: 2
+                    gates:
+                      - { name: H, qubits: [0] }
+                      - { name: CX, qubits: [0,1] }
+                  goals: { fidelity_min: 0.9 }
+                  strategy: auto
+      responses:
+        '200':
+          description: Successful compilation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompileResponse'
+  /estimate:
+    post:
+      summary: Estimate cost/fidelity for dual-path strategies
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstimateRequest'
+      responses:
+        '200':
+          description: Estimation result with recommendation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EstimateResponse'
+  /discover_patches:
+    post:
+      summary: Discover candidate QEC patches and mapping hints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchesRequest'
+      responses:
+        '200':
+          description: Candidate patches and hints
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatchesResponse'
+  /decode:
+    post:
+      summary: Decode syndromes using adaptive decoder (local-first policy)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecodeRequest'
+      responses:
+        '200':
+          description: Corrections and confidence
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecodeResponse'
+  /execute_local:
+    post:
+      summary: Execute a packaged job locally or submit to a local simulator
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteLocalRequest'
+      responses:
+        '200':
+          description: Job submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecuteLocalResponse'
+  /job/{id}:
+    get:
+      summary: Get job status and result (if available)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Current job status (and result if complete)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+components:
+  schemas:
+    QcraftIR:
+      type: object
+      properties:
+        version: { type: string }
+        qubits: { type: integer, minimum: 1 }
+        clbits: { type: integer, minimum: 0 }
+        gates:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              qubits:
+                type: array
+                items: { type: integer }
+              params:
+                type: array
+                items: { oneOf: [ { type: number }, { type: string } ] }
+            required: [ name, qubits ]
+        metadata: { type: object, additionalProperties: true }
+      required: [ version, qubits, gates ]
+    DeviceProfile:
+      type: object
+      properties:
+        provider: { type: string }
+        device_name: { type: string }
+        native_gates: { type: array, items: { type: string } }
+        connectivity: { type: object, additionalProperties: { type: array, items: { type: integer } } }
+        qubit_properties: { type: object }
+        capabilities:
+          type: object
+          properties:
+            mid_circuit_measure: { type: boolean }
+            conditional: { type: boolean }
+      required: [ provider, device_name ]
+    ErrorProfile:
+      type: object
+      properties:
+        model: { type: string }
+        params: { type: object }
+        correlated: { type: boolean }
+        non_markovian: { type: boolean }
+    QecPatch:
+      type: object
+      properties:
+        family: { type: string }
+        distance: { type: integer }
+        layout_type: { type: string }
+        supported_logical: { type: array, items: { type: string } }
+        resources: { type: object }
+      required: [ family, distance ]
+    MappingHints:
+      type: object
+      properties:
+        suggestions: { type: array, items: { type: string } }
+    JobPackage:
+      type: object
+      properties:
+        provider: { type: string }
+        device: { type: string }
+        native_job: { type: object }
+        decoder:
+          type: object
+          properties:
+            strategy: { type: string, enum: [ local_first, cloud_fallback ] }
+            hooks: { type: array, items: { type: string } }
+        provenance:
+          type: object
+          properties:
+            ft_family: { type: string }
+            distance: { type: integer }
+            policy: { type: string }
+      required: [ provider, device, native_job ]
+    CompileRequest:
+      type: object
+      properties:
+        ir: { $ref: '#/components/schemas/QcraftIR' }
+        device_profile: { $ref: '#/components/schemas/DeviceProfile' }
+        goals:
+          type: object
+          properties:
+            fidelity_min: { type: number }
+            max_qubits: { type: integer }
+            max_latency_ns: { type: integer }
+        strategy:
+          type: string
+          enum: [ auto, A, B ]
+      required: [ ir ]
+    CompileMetrics:
+      type: object
+      properties:
+        est_fidelity: { type: number }
+        swaps: { type: integer }
+        latency_ns: { type: integer }
+        resources: { type: object }
+    CompileResponse:
+      type: object
+      properties:
+        job_package: { $ref: '#/components/schemas/JobPackage' }
+        metrics: { $ref: '#/components/schemas/CompileMetrics' }
+        provenance: { type: object }
+      required: [ job_package ]
+    EstimateRequest:
+      type: object
+      properties:
+        ir: { $ref: '#/components/schemas/QcraftIR' }
+        device_profile: { $ref: '#/components/schemas/DeviceProfile' }
+        candidate_patches:
+          type: array
+          items: { $ref: '#/components/schemas/QecPatch' }
+      required: [ ir ]
+    EstimateResponse:
+      type: object
+      properties:
+        pathA: { type: object, properties: { fidelity: { type: number }, cost: { type: number } } }
+        pathB: { type: object, properties: { fidelity: { type: number }, cost: { type: number } } }
+        recommendation: { type: string, enum: [ A, B ] }
+      required: [ pathA, pathB ]
+    PatchesRequest:
+      type: object
+      properties:
+        ir: { $ref: '#/components/schemas/QcraftIR' }
+        device_profile: { $ref: '#/components/schemas/DeviceProfile' }
+        error_profile: { $ref: '#/components/schemas/ErrorProfile' }
+      required: [ ir ]
+    PatchesResponse:
+      type: object
+      properties:
+        patches: { type: array, items: { $ref: '#/components/schemas/QecPatch' } }
+        mapping_hints: { $ref: '#/components/schemas/MappingHints' }
+      required: [ patches ]
+    DecodeRequest:
+      type: object
+      properties:
+        syndromes:
+          type: array
+          items: { type: array, items: { type: integer } }
+        policy: { type: string, enum: [ local_first, cloud_fallback ] }
+      required: [ syndromes ]
+    DecodeResponse:
+      type: object
+      properties:
+        corrections:
+          type: array
+          items: { type: array, items: { type: integer } }
+        confidence: { type: number }
+      required: [ corrections ]
+    ExecuteLocalRequest:
+      type: object
+      properties:
+        job_package: { $ref: '#/components/schemas/JobPackage' }
+        options:
+          type: object
+          properties:
+            shots: { type: integer, default: 1024 }
+            seed: { type: integer }
+      required: [ job_package ]
+    ExecuteLocalResponse:
+      type: object
+      properties:
+        job_id: { type: string }
+      required: [ job_id ]
+    JobStatusResponse:
+      type: object
+      properties:
+        status: { type: string, enum: [ pending, running, done, error ] }
+        result: { type: object }
