@@ -59,6 +59,7 @@ def get_artifact_name(config, curriculum_stage):
     return naming.format(
         provider=env_cfg['provider'],
         device=env_cfg['device'],
+        code_family=env_cfg.get('code_family', 'surface'),
         layout_type=env_cfg['layout_type'],
         code_distance=env_cfg['code_distance'],
         patch_count=env_cfg['patch_count'],
@@ -86,11 +87,18 @@ def main():
         env_cfg_stage = env_cfg.copy()
         env_cfg_stage['patch_count'] = stage['patch_count']
         config['multi_patch_rl_agent']['environment'] = env_cfg_stage
-        # Initialize environment
-        env = SurfaceCodeEnvironment(config['multi_patch_rl_agent'], {}, reward_engine=MultiPatchRewardEngine(config['multi_patch_rl_agent']))
+        # Initialize environment (surface or qldpc)
+        code_family = str(env_cfg.get('code_family', 'surface')).lower()
+        if code_family == 'qldpc':
+            from scode.rl_agent.qldpc_environment import QLDPCEnvironment
+            env = QLDPCEnvironment(config, {}, reward_engine=MultiPatchRewardEngine(config))
+        else:
+            env = SurfaceCodeEnvironment(config, {}, reward_engine=MultiPatchRewardEngine(config))
         env.current_phase = stage_idx  # Ensure correct curriculum stage is used
         # Initialize agent
-        policy = agent_cfg['policy']
+        policy = agent_cfg.get('policy', 'MlpPolicy')
+        if code_family == 'qldpc' and str(policy).lower() != 'mlppolicy':
+            policy = 'MlpPolicy'
         model = PPO(policy, env, **{k: v for k, v in agent_cfg.items() if k not in ['policy', 'resume_from_checkpoint', 'save_interval']})
         # Resume from checkpoint if specified
         if agent_cfg.get('resume_from_checkpoint'):

@@ -1,0 +1,11 @@
+families:
+  - name: surface
+    enabled: true
+    api:
+      module: code_patches.family_surface
+      class: SurfaceFamilyAPI
+  - name: qldpc
+    enabled: true
+    api:
+      module: qldpc.api
+      class: QLDPCAPI

@@ -1,8 +1,8 @@
-# Quantum Surface Code Generator Using Reinforcement Learning
+# Qcraft: Code Patch Optimizer (Surface + qLDPC) Using Reinforcement Learning
 
 ## Introduction
 
-Quantum error correction is a cornerstone of scalable quantum computing. Surface codes, with their topological protection and hardware compatibility, are a leading candidate for fault-tolerant quantum computation. This project presents a modular, configuration-driven framework for generating, mapping, and optimizing quantum surface codes on real hardware using reinforcement learning (RL). The system supports curriculum learning, multi-patch mapping, and a variety of code/grid types, and is designed for extensibility, reproducibility, and hardware-awareness.
+Quantum error correction is a cornerstone of scalable quantum computing. This project presents a modular, configuration‑driven framework for generating, mapping, and optimizing quantum error‑correcting code patches on real hardware using reinforcement learning (RL). It now supports multiple code families (Surface and qLDPC) with a family‑aware training pipeline controlled entirely by YAML configs. The system supports curriculum learning, multi‑patch mapping, and is designed for extensibility, reproducibility, and hardware‑awareness.
 
 ## Methodology
 
@@ -15,7 +15,67 @@ The framework is composed of the following modular components:
 - **MultiPatchMapper**: Maps multiple logical qubits (surface code patches) onto a single hardware device, supporting adjacent, separated, and shared-boundary layouts, as well as constraints like minimum distance and patch shapes.
 - **EvaluationFramework**: Systematically assesses logical error rate, resource efficiency, learning efficiency, and hardware adaptability.
 
+## What's New (2025-Q3)
+
+- Family-aware training: choose code family via `configs/multi_patch_rl_agent.yaml -> multi_patch_rl_agent.environment.code_family` (`surface` or `qldpc`).
+- qLDPC support: added `qldpc/` family with `QLDPCAPI`, generator/mapper, and a minimal `QLDPCEnvironment` for RL.
+- Family registry and schema: `configs/code_families.yaml` validated by `schemas/code_families.schema.yaml` to dynamically load families.
+- Schema coverage expanded: `qldpc_config.schema.yaml`, `analysis.schema.yaml`, `profiler.schema.yaml`, updated `workflow_policy.schema.yaml`.
+- FT builder per-code-space transversality and code switching policy integrated.
+- GUI: Train Module dropdown renamed to "Code Patch Optimizer" (Surface vs qLDPC is picked by config).
+
 All parameters, including RL agent settings, curriculum phases, reward weights, and hardware profiles, are specified in YAML/JSON config files. No hardcoded values are present in the codebase.
+
+## Current Architecture (Mermaid)
+
+```mermaid
+flowchart LR
+  GUI[PySide6 GUI] --> WB[WorkflowBridge]
+  WB --> ORCH[Orchestrator]
+  ORCH --> SCAPI[SurfaceCodeAPI]
+  ORCH --> FT[FT Circuit Builder]
+  ORCH --> OPT[CircuitOptimizationAPI]
+  ORCH --> CS[CodeSwitcherAPI]
+  ORCH --> EXE[ExecutionSimulatorAPI]
+  ORCH --> LOG[LoggingResultsManager]
+  ORCH --> REG[CodePatchRegistry]
+  REG --> Surf[SurfaceFamilyAPI]
+  REG --> QLDPC[QLDPCAPI]
+  CFG[ConfigManager + Schemas] --- ORCH
+  DEV[DeviceAbstraction] --- ORCH
+```
+
+## Current Workflow (Mermaid)
+
+```mermaid
+flowchart LR
+  GUI[PySide6 GUI] --> WB[WorkflowBridge]
+  WB --> ORCH[Orchestrator]
+  ORCH --> LYT[Code Layout / Family API]
+  LYT --> SCAPI[SurfaceCodeAPI]
+  LYT --> QAPI[QLDPCAPI]
+  ORCH --> MAP[Mapper / RL]
+  ORCH --> FT[FT Circuit Builder]
+  ORCH --> OPT[Circuit Optimization]
+  ORCH --> CS[Code Switching]
+  ORCH --> EXE[Execution / Simulation]
+  ORCH --> LOG[Logging]
+```
+
+## Selecting Code Family (Surface vs qLDPC)
+
+Set the family in `configs/multi_patch_rl_agent.yaml`:
+
+```yaml
+multi_patch_rl_agent:
+  environment:
+    code_family: surface  # or qldpc
+    layout_type: rotated  # for surface; use tanner for qldpc
+    code_distance: 3
+```
+
+- The GUI Train Module is generically named "Code Patch Optimizer"; the actual family is chosen by this config.
+- Artifacts are saved with `{code_family}` in the filename for clarity.
 
 ## Reward
 
@@ -415,7 +475,7 @@ Select a provider and device in `configs/hardware.json`. Provider must match a d
 
 ## Quickstart
 
-1. Edit `configs/surface_code_config.yaml` to set your desired parameters (see the Configuration Parameters Explained section above).
+1. Edit `configs/multi_patch_rl_agent.yaml` to set training parameters and choose the code family via `multi_patch_rl_agent.environment.code_family` (surface or qldpc).
 2. Edit `configs/hardware.json` to select your provider and device. The provider should match the prefix of a devices YAML file (e.g., `ibm` for `ibm_devices.yaml`).
 3. (Optional) Edit or select a hardware/device YAML file in `configs/`.
 4. Edit `configs/gates.yaml` to define the set of quantum gates available in the circuit designer and backend modules. This file is required for the GUI and backend to function correctly.

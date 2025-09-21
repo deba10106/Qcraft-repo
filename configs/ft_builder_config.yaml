@@ -10,3 +10,13 @@ code_switching_protocols:
   - name: lattice_surgery
     description: "Lattice surgery for CNOT and other multi-qubit gates."
     supported_gates: ["CNOT"] 
+
+# Preferences for non-transversal gate handling (used by policy/decision_policy.py)
+non_transversal_preferences:
+  prefer: magic_state_injection  # options: magic_state_injection, lattice_surgery, teleportation
+  per_gate:
+    T: magic_state_injection
+    Tdg: magic_state_injection
+    CCX: lattice_surgery
+    CS: lattice_surgery
+    CSdg: lattice_surgery

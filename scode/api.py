@@ -179,6 +179,10 @@ class SurfaceCodeAPI:
             }
             code_spaces.append(patch_dict)
         combined_layout['code_spaces'] = code_spaces
+        # Tag family for downstream modules
+        combined_layout['family'] = 'surface'
+        for cs in combined_layout['code_spaces']:
+            cs['family'] = 'surface'
         return combined_layout
 
     def _combine_patches(self, patches: List[SurfaceCodeObject], min_distance: int) -> Dict[str, Any]:

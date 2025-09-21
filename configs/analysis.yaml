@@ -1,0 +1,15 @@
+# Static circuit analysis configuration
+analysis:
+  enable: true
+  report:
+    t_count: true
+    t_depth: true
+    non_clifford: true
+    entangling_graph: true
+    depth_layers: true
+    locality_score: true
+    parallelism_score: true
+  thresholds:
+    high_t_count: 128
+    high_t_depth: 32
+    high_twoq_density: 0.2

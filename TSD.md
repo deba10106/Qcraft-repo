@@ -1,5 +1,24 @@
 # Technical Specification Document (TSD)
-Qcraft — Quantum Surface Code Designer, Mapper, and Workflow Orchestrator
+## 2.1 Intended Architecture & Workflow (Target)
+
+- Pluggable code families: `CodePatchRegistry` loads families from `configs/code_families.yaml` with per‑family APIs exposing discovery, generation, mapping, and supported gates.
+- Family‑aware RL: a unified "Code Patch Optimizer" environment interface; per‑family envs (Surface, qLDPC) implement the same API to SB3.
+- FT builder integration: per‑code‑space supported‑gate checks, automatic code switching (policy‑driven) when gates are non‑transversal.
+- Orchestrator policy: selects code family and patch parameters based on device constraints and circuit metrics (via `PatchDiscoverer`).
+## 3. Problems & Approach
+
+- Diverse hardware and noise regimes mean Surface codes are not always best. We added a code‑family abstraction and registry so RL can target Surface or qLDPC and future families.
+- Transversality is code‑dependent. The FT builder now checks gate support per code space and inserts code‑switching via policy when unsupported.
+- Family selection should be config‑first. Training selects the environment (`SurfaceCodeEnvironment` vs `QLDPCEnvironment`) using `multi_patch_rl_agent.environment.code_family` in both GUI and CLI.
+- Config correctness matters. We expanded schemas and added non‑fatal validation during module init to catch mistakes early without blocking runs.
+## What's New (2025-Q3)
+
+- Family‑aware training across Surface and qLDPC via `multi_patch_rl_agent.environment.code_family` (config‑first design).
+- Minimal `scode/rl_agent/qldpc_environment.py` added; RL training selects environment by family in both GUI and CLI.
+- FT builder now checks gate support per code space and inserts code switching decisions via policy when needed.
+- New schemas (`qldpc_config`, `code_families`, `analysis`, `profiler`) and hardened `workflow_policy` schema; non‑fatal validation integrated.
+
+Qcraft — Code Patch Optimizer (Surface + qLDPC), Mapper, and Workflow Orchestrator
 
 Version: 0.1.x
 Repository root: `/home/shoperbox/Downloads/qcraft/`
@@ -9,8 +28,8 @@ Primary entry-point (GUI): `circuit_designer/gui_main.py`
 
 ## 1. Introduction & Purpose
 
-- **Product Vision**: Modular, configuration-driven platform to design, map, optimize, and optionally execute fault-tolerant (FT) quantum circuits using surface codes and RL.
-- **Scope**: Surface-code generation, multi‑patch mapping (heuristic/RL), FT circuit assembly, optimization, optional execution/simulation, results logging, schema‑validated configs.
+- **Product Vision**: Modular, configuration-driven platform to design, map, optimize, and optionally execute fault-tolerant (FT) quantum circuits using multiple code patch families (Surface and qLDPC) with RL.
+- **Scope**: Code-family–aware generation/mapping (heuristic/RL), FT circuit assembly with per-code-space transversality, optimization, optional execution/simulation, results logging, schema‑validated configs.
 - **Audience**: Quantum engineers/researchers; RL/ML researchers; product teams.
 - **Necessity**: Bridges theory and device constraints; enables reproducibility via config+schemas; compares heuristics vs RL.
 
@@ -327,9 +346,26 @@ flowchart LR
   EXE --> LOG
 ```
 
+## 18. Status: Achieved vs Pending
+
+- **Achieved**
+  - Family-aware training toggle via `multi_patch_rl_agent.environment.code_family` with schema support in `schemas/multi_patch_rl_agent.schema.yaml` and config in `configs/multi_patch_rl_agent.yaml`.
+  - qLDPC family integrated: `qldpc/api.py`, `qldpc/generator.py`, `qldpc/mapper.py`, minimal RL env `scode/rl_agent/qldpc_environment.py`.
+  - FT builder per-code-space transversality and policy-based code switching: `fault_tolerant_circuit_builder/ft_circuit_builder.py`.
+  - Config schemas expanded: `schemas/qldpc_config.schema.yaml`, `schemas/code_families.schema.yaml`, `schemas/analysis.schema.yaml`, `schemas/profiler.schema.yaml`, updated `schemas/workflow_policy.schema.yaml`.
+  - Non-fatal schema validation integrated in key modules: `orchestration_controller/orchestrator.py`, `compiler/cost_model.py`, `code_patches/registry.py`, `qldpc/generator.py`.
+  - GUI rename: Train Module dropdown shows "Code Patch Optimizer" (family picked by config): `circuit_designer/training_dialog.py`.
+
+- **Pending / In Progress**
+  - Richer `QLDPCEnvironment` observation/action spaces aligned with `SurfaceCodeEnvironment` (ongoing).
+  - Orchestrated automatic family selection during FT transformation based on device/circuit metrics (`adaptive_qec/discoverer/patch_discoverer.py`) — integration loop hardening.
+  - Expanded evaluation metrics for qLDPC layouts and mapping; deeper LER benchmarking across families.
+  - Additional families (e.g., custom adaptive) and unified env interface abstraction.
+  - Documentation polish: consolidated architecture diagram and sequence diagrams.
+
 ---
 
-## 18. Notes and Constraints
+## 19. Notes and Constraints
 
 - Python 3.8+ supported with `importlib.resources` fallbacks throughout config/device loading.
 - Single‑patch direct mapping paths are deprecated in API; multi‑patch flows are the default for multiple logical qubits.

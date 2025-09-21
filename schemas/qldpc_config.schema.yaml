@@ -1,0 +1,56 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [layouts, codes]
+properties:
+  layouts:
+    type: array
+    items:
+      type: string
+  codes:
+    type: array
+    items:
+      type: object
+      required: [name, layout_type, distance, n, Hx, Hz]
+      properties:
+        name:
+          type: string
+        layout_type:
+          type: string
+        distance:
+          type: integer
+          minimum: 1
+        n:
+          type: integer
+          minimum: 1
+        Hx:
+          type: array
+          items:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        Hz:
+          type: array
+          items:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        data_adjacency:
+          type: array
+          items:
+            type: array
+            minItems: 2
+            maxItems: 2
+            items:
+              type: integer
+              minimum: 0
+      additionalProperties: true
+  supported_logical_gates:
+    type: array
+    items:
+      type: string
+  min_distance_between_patches:
+    type: integer
+    minimum: 0
+additionalProperties: true

@@ -1,0 +1,9 @@
+# Compiler/Cost Model configuration
+cost_model:
+  default_error_rates:
+    cx: 0.01        # default 2q gate error if not present in device profile
+    single: 0.001   # default 1q gate error if not present in device profile
+    readout: 0.02   # default readout error if not present in device profile
+  latency_ns:
+    twoq_layer: 200   # ns per depth layer for 2q interactions
+    oneq_layer: 20    # ns per 1q layer

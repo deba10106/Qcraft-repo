@@ -4,6 +4,7 @@ import json
 import importlib.resources
 from typing import List, Dict, Any, Optional, Callable
 from configuration_management.config_manager import ConfigManager
+from policy.decision_policy import select_non_transversal_policy
 
 # Qiskit 4.x: QuantumCircuit is still imported from qiskit
 from qiskit import QuantumCircuit
@@ -89,7 +90,9 @@ class FaultTolerantCircuitBuilder:
             print(f"[DEBUG] device_info: {device_info}")
             print(f"[DEBUG] logical_circuit: {logical_circuit}")
             raise ValueError("No code_spaces provided by layout. Please check that your layout step returns at least one code space with supported_logical_gates.")
-        # Transform logical gates to supported gates
+        # Store device for downstream policy decisions
+        self._device_info = device_info
+        # Transform logical gates to supported gates with policy-based selection for non-transversal gates
         circuit, switching_points = self.transform_logical_to_supported(circuit, code_spaces)
         # If not transformable, insert code switching at switching_points
         if switching_points:
@@ -109,19 +112,28 @@ class FaultTolerantCircuitBuilder:
         mark it for code switching.
         Returns transformed circuit and list of switching points.
         """
-        supported_gates = set()
-        for cs in code_spaces:
-            supported_gates.update(cs.get('supported_logical_gates', []))
+        # Build lookup per code_space for accurate transversality checks
+        supported_by_space = {
+            cs.get('name'): set(cs.get('supported_logical_gates', [])) for cs in code_spaces
+        }
         gates = circuit.get('gates', [])
         new_gates = []
         switching_points = []
         for idx, gate in enumerate(gates):
-            if gate['name'] in supported_gates:
+            gname = gate.get('name')
+            cs_name = gate.get('code_space')
+            is_supported = False
+            if cs_name and cs_name in supported_by_space:
+                is_supported = gname in supported_by_space[cs_name]
+            else:
+                # Fallback: supported in any space
+                is_supported = any(gname in s for s in supported_by_space.values())
+            if is_supported:
                 new_gates.append(gate)
             else:
-                # Not supported: mark for code switching
-                switching_points.append({'index': idx, 'to_code_space': self.config.get('default_switching_protocol', 'magic_state_injection')})
-                new_gates.append(gate)  # Keep the gate, switching will be inserted
+                policy = select_non_transversal_policy(gname, self._device_info, self.config)
+                switching_points.append({'index': idx, 'to_code_space': policy})
+                new_gates.append(gate)
         circuit['gates'] = new_gates
         return circuit, switching_points
 

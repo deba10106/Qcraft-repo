@@ -73,11 +73,24 @@ class ExecutionSimulator:
                 qc = self._dict_to_qiskit_circuit(circuit)
                 shots = run_config.get('shots', 1024) if run_config else 1024
                 job = qiskit_backend.run(qc, shots=shots)
+                job_id = job.job_id() if hasattr(job, 'job_id') else str(uuid.uuid4())
+                with self.lock:
+                    self.job_status[job_id] = 'running'
                 result = job.result()
-                job_id = job.job_id() if hasattr(job, 'job_id') else None
-                print(f"[DEBUG] IBM job submitted. Job ID: {job_id}")
-                if job_id is None:
-                    print("[ERROR] job_id is None after IBM execution.")
+                # Attempt to extract counts
+                counts = {}
+                try:
+                    if hasattr(result, 'get_counts'):
+                        counts = result.get_counts()
+                    elif hasattr(result, 'data'):
+                        data = result.data()
+                        counts = getattr(data, 'counts', {}) if hasattr(data, 'counts') else {}
+                except Exception as ie:
+                    print(f"[WARN] Could not extract counts from IBM result: {ie}")
+                with self.lock:
+                    self.job_results[job_id] = {'backend': 'ibm', 'counts': counts}
+                    self.job_status[job_id] = 'done'
+                print(f"[DEBUG] IBM job completed. Job ID: {job_id}")
                 return job_id
             except Exception as e:
                 print(f"[ERROR] IBM execution failed: {e}")
@@ -93,7 +106,16 @@ class ExecutionSimulator:
             shots = run_config.get('shots', 1024) if run_config else 1024
             job = sim_backend.run(qc, shots=shots)
             result = job.result()
+            # Extract counts for local simulation
+            counts = {}
+            try:
+                counts = result.get_counts() if hasattr(result, 'get_counts') else {}
+            except Exception as e:
+                print(f"[WARN] Aer result get_counts failed: {e}")
             job_id = getattr(job, 'job_id', lambda: 'local_sim')()
+            with self.lock:
+                self.job_results[job_id] = {'backend': 'local', 'counts': counts}
+                self.job_status[job_id] = 'done'
             return job_id
         else:
             raise NotImplementedError(f"Provider {provider} not supported for execution.")
@@ -190,4 +212,14 @@ class ExecutionSimulatorAPI:
                 for k, v in counts.items():
                     f.write(f'{k},{v}\n')
         else:
-            raise ValueError(f"Unsupported export format: {format}") 
+            raise ValueError(f"Unsupported export format: {format}")
+
+    def list_backends(self) -> list:
+        """List available local simulation backends and selected device."""
+        backends = []
+        if QISKIT_AVAILABLE:
+            try:
+                backends = [b.name() if hasattr(b, 'name') else getattr(b, 'name', None) for b in Aer.backends()]
+            except Exception:
+                backends = []
+        return backends

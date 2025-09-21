@@ -1,0 +1,8 @@
+# Error profiler configuration
+profiler:
+  uncertainty:
+    variance_threshold: 1.0e-4
+    high_uncertainty_if_no_calibration: true
+  aggregation:
+    readout_stat: mean_var  # compute mean and variance
+    gate_error_merge: passthrough

@@ -60,9 +60,14 @@ class TrainingDialog(QDialog):
         module_layout = QVBoxLayout(module_group)
         self.module_combo = QComboBox()
         self.module_combo.addItems([
-            "Surface Code Generator",
+            "Code Patch Optimizer",
             "Circuit Optimizer"
         ])
+        self.module_combo.setToolTip(
+            "Select 'Code Patch Optimizer' to train the RL mapping agent.\n"
+            "Surface vs qLDPC is chosen in configs/multi_patch_rl_agent.yaml ->\n"
+            "multi_patch_rl_agent.environment.code_family."
+        )
         self.module_combo.currentIndexChanged.connect(self._on_module_changed)
         module_layout.addWidget(self.module_combo)
         config_layout.addWidget(module_group)
@@ -151,7 +156,7 @@ class TrainingDialog(QDialog):
 
     def _update_ui_for_agent_type(self):
         if self.selected_module == 'surface_code':
-            self.setWindowTitle("Surface Code Generator Training")
+            self.setWindowTitle("Code Patch Optimizer Training")
         elif self.selected_module == 'optimizer':
             self.setWindowTitle("Circuit Optimizer Training")
         self._add_log_message(f"Selected agent type: {self.selected_module}")

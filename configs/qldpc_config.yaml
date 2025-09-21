@@ -1,0 +1,36 @@
+# qLDPC code family configuration
+layouts:
+  - tanner
+
+# Dictionary entries describing specific qLDPC codes
+codes:
+  - name: small_tanner_d3
+    layout_type: tanner
+    distance: 3
+    n: 9
+    # parity-check supports; indices of data qubits per stabilizer
+    Hx:
+      - [0, 1, 2]
+      - [3, 4, 5]
+      - [6, 7, 8]
+    Hz:
+      - [0, 3, 6]
+      - [1, 4, 7]
+      - [2, 5, 8]
+    # Optional approximate adjacency between data nodes for mapping guidance
+    data_adjacency:
+      - [0, 1]
+      - [1, 2]
+      - [3, 4]
+      - [4, 5]
+      - [6, 7]
+      - [7, 8]
+
+supported_logical_gates:
+  - X
+  - Z
+  - CNOT
+  - H
+  - S
+
+min_distance_between_patches: 1

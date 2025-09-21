@@ -1,0 +1,31 @@
+# Orchestrator workflow policy (YAML-driven)
+workflow_policy:
+  module_sequence:
+    - analysis
+    - profiler
+    - surface_code
+    - ft_builder
+    - mapper
+    - co_optimize
+    - optimizer
+    - scheduler
+    - decoder_placement
+    - validation
+    - code_switcher
+    - executor
+  # Code family/layout selection heuristics
+  code_selection:
+    allowed_layouts: [planar, rotated]
+    prefer_low_error: true
+    prefer_short_depth: false
+  # Enable/disable high-level behaviors
+  enable_code_switching: true
+  enable_execution: false
+
+  co_optimization:
+    enabled: true
+    iterations: 2
+
+# Privacy/export layer (used by orchestrator executor)
+privacy:
+  export_policy: obfuscate  # valid: none, obfuscate, strict-local

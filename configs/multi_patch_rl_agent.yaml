@@ -1,5 +1,6 @@
 multi_patch_rl_agent:
   environment:
+    code_family: surface  # options: surface, qldpc
     provider: ibm
     device: ibm_hummingbird
     patch_count: 2
@@ -82,4 +83,4 @@ multi_patch_rl_agent:
     schedule: linear
   training_artifacts:
     output_dir: ./outputs/training_artifacts
-    artifact_naming: "{provider}_{device}_{layout_type}_d{code_distance}_patches{patch_count}_stage{curriculum_stage}_sb3_ppo_surface_code_{timestamp}.zip" 
+    artifact_naming: "{provider}_{device}_{code_family}_{layout_type}_d{code_distance}_patches{patch_count}_stage{curriculum_stage}_sb3_ppo_{timestamp}.zip"

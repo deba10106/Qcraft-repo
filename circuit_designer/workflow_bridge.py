@@ -84,8 +84,32 @@ class QuantumWorkflowBridge:
 
         return self.orchestrator.optimize_circuit(circuit, info, config_overrides, progress_callback=progress_callback)
 
-
-    # Duplicate early training and device methods removed in favor of later, unified implementations.
+    def run_workflow(self, circuit: Dict, user_config: Optional[Dict] = None, progress_callback=None) -> Dict:
+        """
+        Execute the full orchestrator workflow and return enriched outputs for GUI consumption.
+        Includes: analysis, error_profile, strategy, patches, mapping_hints, code_layout_combined,
+        mapping_info, ft_circuit, schedule, decoder_plan, validation, capabilities, job_package, provenance.
+        """
+        result = self.orchestrator.run_workflow(circuit, user_config, progress_callback=progress_callback)
+        # Log a compact summary to assist GUI dashboards
+        try:
+            summary = {
+                'workflow_id': result.get('workflow_id'),
+                'status': result.get('status'),
+                'strategy': result.get('strategy', {}).get('selected'),
+                'code_family': result.get('code_family'),
+                'layout': result.get('surface_code', {}).get('layout'),
+                'distance': result.get('surface_code', {}).get('distance'),
+                'has_ft_circuit': 'ft_circuit' in result,
+                'has_mapping': 'mapping_info' in result,
+                'has_schedule': 'schedule' in result,
+                'has_validation': 'validation' in result,
+                'has_job_package': 'job_package' in result,
+            }
+            self.logger.log_event('workflow_summary', summary, level='INFO')
+        except Exception:
+            pass
+        return result
 
     def map_circuit_to_surface_code(self, circuit: Dict, device: str, layout_type: str, code_distance: int, provider: str = None, config_overrides: Optional[Dict] = None, progress_callback=None, mapping_constraints: Optional[Dict] = None, sweep_code_distance: bool = False) -> Dict:
         """
@@ -191,7 +215,13 @@ class QuantumWorkflowBridge:
                     use_rl_agent=True,
                     rl_policy_path=None
                 )
-                return {'mapping_info': mapping, 'selected_code_distance': d, 'selected_code_type': layout_type, 'selected_ler': mapping.get('optimization_metrics', {}).get('logical_error_rate', None)}
+                # Attach any discovered strategy/patches/capabilities from orchestrator if available later in the pipeline
+                return {
+                    'mapping_info': mapping,
+                    'selected_code_distance': d,
+                    'selected_code_type': layout_type,
+                    'selected_ler': mapping.get('optimization_metrics', {}).get('logical_error_rate', None)
+                }
             # --- Fallback: single-patch mapping logic ---
             self.logger.log_event('surface_code_mapping', {'single_patch_rl_agent': True}, level='INFO')
             return self.orchestrator.map_circuit_to_surface_code(circuit, device, layout_type, d, provider, config_overrides, progress_callback=progress_callback, mapping_constraints=mapping_constraints)
@@ -499,6 +529,12 @@ class QuantumWorkflowBridge:
                 config_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../configs/multi_patch_rl_agent.yaml'))
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
+            # Non-fatal schema validation to catch errors early
+            try:
+                from configuration_management.config_manager import ConfigManager
+                ConfigManager.validate_config('multi_patch_rl_agent')
+            except Exception:
+                pass
             if log_callback:
                 log_callback(f"[INFO] Loaded config from {config_path}", None)
             # Merge config_overrides from GUI, if provided
@@ -526,12 +562,25 @@ class QuantumWorkflowBridge:
                 env_cfg_stage = env_cfg.copy()
                 env_cfg_stage['patch_count'] = stage['patch_count']
                 config['multi_patch_rl_agent']['environment'] = env_cfg_stage
-                env = SurfaceCodeEnvironment(
-                    config['multi_patch_rl_agent'],
-                    hardware_graph,
-                    surface_code_generator=surface_code_generator,
-                    reward_engine=MultiPatchRewardEngine(config['multi_patch_rl_agent'])
-                )
+                # Choose environment by code family (default: surface)
+                env_family = (config.get('multi_patch_rl_agent', {})
+                                   .get('environment', {})
+                                   .get('code_family', 'surface'))
+                if str(env_family).lower() == 'qldpc':
+                    from scode.rl_agent.qldpc_environment import QLDPCEnvironment
+                    env = QLDPCEnvironment(
+                        config,
+                        hardware_graph,
+                        qldpc_generator=None,
+                        reward_engine=MultiPatchRewardEngine(config)
+                    )
+                else:
+                    env = SurfaceCodeEnvironment(
+                        config,
+                        hardware_graph,
+                        surface_code_generator=surface_code_generator,
+                        reward_engine=MultiPatchRewardEngine(config)
+                    )
                 env.current_phase = stage_idx  # Ensure correct curriculum stage is used
                 policy = 'MultiInputPolicy'
                 model = PPO(policy, env, **{k: v for k, v in agent_cfg.items() if k not in ['algorithm', 'policy', 'resume_from_checkpoint', 'save_interval', 'total_timesteps']})
@@ -573,7 +622,8 @@ class QuantumWorkflowBridge:
                     code_distance=env_cfg_final.get('code_distance', 3),
                     patch_count=env_cfg_final.get('patch_count', 1),
                     curriculum_stage=stage_idx+1,
-                    timestamp=timestamp
+                    timestamp=timestamp,
+                    code_family=env_cfg_final.get('code_family', 'surface')
                 )
                 artifact_path = os.path.join(artifact_dir, artifact_name)
                 if log_callback:

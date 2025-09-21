@@ -1,0 +1,32 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [cost_model]
+properties:
+  cost_model:
+    type: object
+    properties:
+      default_error_rates:
+        type: object
+        properties:
+          cx:
+            type: number
+            exclusiveMinimum: 0
+          single:
+            type: number
+            exclusiveMinimum: 0
+          readout:
+            type: number
+            exclusiveMinimum: 0
+        additionalProperties: true
+      latency_ns:
+        type: object
+        properties:
+          twoq_layer:
+            type: number
+            minimum: 0
+          oneq_layer:
+            type: number
+            minimum: 0
+        additionalProperties: true
+    additionalProperties: true
+additionalProperties: true

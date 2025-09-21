@@ -1,0 +1,42 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$type: object
+required: [analysis]
+properties:
+  analysis:
+    type: object
+    properties:
+      enable:
+        type: boolean
+      report:
+        type: object
+        properties:
+          t_count:
+            type: boolean
+          t_depth:
+            type: boolean
+          non_clifford:
+            type: boolean
+          entangling_graph:
+            type: boolean
+          depth_layers:
+            type: boolean
+          locality_score:
+            type: boolean
+          parallelism_score:
+            type: boolean
+        additionalProperties: true
+      thresholds:
+        type: object
+        properties:
+          high_t_count:
+            type: integer
+            minimum: 0
+          high_t_depth:
+            type: integer
+            minimum: 0
+          high_twoq_density:
+            type: number
+            minimum: 0
+        additionalProperties: true
+    additionalProperties: true
+additionalProperties: true

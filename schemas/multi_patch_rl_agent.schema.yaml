@@ -10,13 +10,16 @@ properties:
       environment:
         type: object
         properties:
+          code_family:
+            type: string
+            enum: [surface, qldpc]
           provider:
             type: string
           device:
             type: string
           layout_type:
             type: string
-            enum: [planar, rotated, color]
+            enum: [planar, rotated, color, tanner]
           code_distance:
             type: integer
             minimum: 3

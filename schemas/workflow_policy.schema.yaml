@@ -1,5 +1,46 @@
 $schema: https://json-schema.org/draft/2020-12/schema
 $type: object
-# Schema placeholder for workflow_policy which currently shares the same config as multi_patch_rl_agent
-# Keep permissive to avoid blocking while configs evolve
+required: [workflow_policy]
+properties:
+  workflow_policy:
+    type: object
+    properties:
+      module_sequence:
+        type: array
+        items:
+          type: string
+          enum: [analysis, profiler, surface_code, ft_builder, mapper, co_optimize, optimizer, scheduler, decoder_placement, validation, code_switcher, executor]
+      code_selection:
+        type: object
+        properties:
+          allowed_layouts:
+            type: array
+            items:
+              type: string
+          prefer_low_error:
+            type: boolean
+          prefer_short_depth:
+            type: boolean
+        additionalProperties: true
+      enable_code_switching:
+        type: boolean
+      enable_execution:
+        type: boolean
+      co_optimization:
+        type: object
+        properties:
+          enabled:
+            type: boolean
+          iterations:
+            type: integer
+            minimum: 0
+        additionalProperties: true
+    additionalProperties: true
+  privacy:
+    type: object
+    properties:
+      export_policy:
+        type: string
+        enum: [none, obfuscate, strict-local]
+    additionalProperties: true
 additionalProperties: true
