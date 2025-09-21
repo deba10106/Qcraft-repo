@@ -62,6 +62,21 @@ flowchart LR
   ORCH --> LOG[Logging]
 ```
 
+## Screenshots
+
+> If the images do not render, place them under `assets/screenshots/` with the filenames below.
+
+- Quantum Circuit Designer (Classic)
+  
+  ![Quantum Circuit Designer](assets/screenshots/designer_classic.png)
+
+- Layout Preview
+  
+  ![Surface Code Layout Preview](assets/screenshots/layout_result_table.png)
+
+
+
+
 ## Selecting Code Family (Surface vs qLDPC)
 
 Set the family in `configs/multi_patch_rl_agent.yaml`:
