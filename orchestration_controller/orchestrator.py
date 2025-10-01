@@ -363,6 +363,18 @@ class OrchestratorController:
         }
         return mapping_info
 
+    def save_config(self, config_name: str = 'workflow_policy') -> None:
+        """Persist the current config using ConfigManager to handle user-writable paths.
+
+        This avoids writing directly to package paths that may be read-only when installed.
+        """
+        try:
+            ConfigManager.save_config(config_name, config=self.config)
+            self.logger.log_event('config_saved', {'config_name': config_name}, level='INFO')
+        except Exception as e:
+            self.logger.log_event('config_save_error', {'config_name': config_name, 'error': str(e)}, level='ERROR')
+            raise
+
     def assemble_fault_tolerant_circuit(self, logical_circuit: dict, mapping_info: dict, code_spaces: List[dict], device_info: dict, config_overrides: Optional[dict] = None, progress_callback=None) -> dict:
         if progress_callback:
             progress_callback("Assembling fault-tolerant circuit...", 0.60)

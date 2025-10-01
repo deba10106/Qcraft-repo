@@ -60,7 +60,7 @@ class MappingVisualizer:
     def _draw_logical_patches(self, layout_result: Dict[str, Any], ax: plt.Axes):
         """Draw logical patches with their qubit layout."""
         if 'multi_patch_layout' not in layout_result:
-            print("[WARNING] No multi_patch_layout found in layout_result")
+            logger.warning("No multi_patch_layout found in layout_result")
             return
             
         # Use blue for Patch 0 and red for Patch 1, fallback to tab10 for others
@@ -200,17 +200,17 @@ class MappingVisualizer:
                 return 'tab:red'
             else:
                 return plt.cm.tab10(int(idx) % 10)
-        print(f"[DEBUG][MappingVisualizer] _draw_device_grid_with_mapping called")
-        print(f"[DEBUG][MappingVisualizer] mapping_info logical_to_physical: {mapping_info.get('logical_to_physical', {})}")
-        print(f"[DEBUG][MappingVisualizer] device_info qubit_positions: {device_info.get('qubit_positions', {})}")
+        logger.debug("_draw_device_grid_with_mapping called")
+        logger.debug("logical_to_physical: %s", mapping_info.get('logical_to_physical', {}))
+        logger.debug("device_info qubit_positions: %s", device_info.get('qubit_positions', {}))
         # Defensive check for qubit_positions
         if 'qubit_positions' not in device_info:
-            print("[ERROR] device_info is missing 'qubit_positions'. Cannot plot device grid.")
+            logger.error("device_info is missing 'qubit_positions'. Cannot plot device grid.")
             return
         
         # Debug logging
-        print(f"[DEBUG] Number of patches to map: {len(mapping_info['logical_to_physical'])}")
-        print(f"[DEBUG] Patches: {list(mapping_info['logical_to_physical'].keys())}")
+        logger.debug("Number of patches to map: %s", len(mapping_info['logical_to_physical']))
+        logger.debug("Patches: %s", list(mapping_info['logical_to_physical'].keys()))
         
         # Create graph for device layout
         G = self._create_device_graph(device_info)
@@ -223,7 +223,7 @@ class MappingVisualizer:
         
         missing_positions = all_physical_qubits - set(pos.keys())
         if missing_positions:
-            print(f"[WARNING] Missing positions for physical qubits: {missing_positions}")
+            logger.warning("Missing positions for physical qubits: %s", missing_positions)
         
         # First draw all physical connections
         for (u, v) in G.edges():
@@ -233,13 +233,13 @@ class MappingVisualizer:
         # Track which physical qubits are used
         used_qubits = set()
         for patch_idx, patch_map in mapping_info['logical_to_physical'].items():
-            print(f"[DEBUG] Processing patch {patch_idx} with {len(patch_map)} qubits")
+            logger.debug("Processing patch %s with %s qubits", patch_idx, len(patch_map))
             used_qubits.update(patch_map.values())
         
         # Draw unused physical qubits
         unused_qubits = set(pos.keys()) - used_qubits
         if unused_qubits:
-            print(f"[DEBUG] Found {len(unused_qubits)} unused qubits")
+            logger.debug("Found %s unused qubits", len(unused_qubits))
             unused_pos = {q: pos[q] for q in unused_qubits}
             ax.scatter([p[0] for p in unused_pos.values()],
                       [p[1] for p in unused_pos.values()],
@@ -260,17 +260,17 @@ class MappingVisualizer:
                 patch_data = mapping_info['multi_patch_layout'][str(patch_idx)]
             
             if patch_data is None:
-                print(f"[WARNING] No layout data found for patch {patch_idx}")
+                logger.warning("No layout data found for patch %s", patch_idx)
                 continue
                 
             patch_layout = patch_data.get('layout', {})
-            print(f"[DEBUG] Patch {patch_idx} layout has {len(patch_layout)} qubits")
+            logger.debug("Patch %s layout has %s qubits", patch_idx, len(patch_layout))
             
             # Draw qubits in this patch
             patch_mapped_count = 0
             for lq, pq in patch_map.items():
                 if pq not in pos:
-                    print(f"[WARNING] No position found for physical qubit {pq} in patch {patch_idx}")
+                    logger.warning("No position found for physical qubit %s in patch %s", pq, patch_idx)
                     continue
                     
                 # Get qubit type and error rate
@@ -281,7 +281,7 @@ class MappingVisualizer:
                     lq_data = patch_layout[lq]
                 
                 if lq_data is None:
-                    print(f"[WARNING] No layout data for logical qubit {lq} in patch {patch_idx}")
+                    logger.warning("No layout data for logical qubit %s in patch %s", lq, patch_idx)
                     continue
                 
                 qtype = lq_data.get('type', '')
@@ -313,7 +313,7 @@ class MappingVisualizer:
                                                           foreground='black')])
                 patch_mapped_count += 1
             
-            print(f"[DEBUG] Successfully mapped {patch_mapped_count} qubits for patch {patch_idx}")
+            logger.debug("Successfully mapped %s qubits for patch %s", patch_mapped_count, patch_idx)
             mapped_count += patch_mapped_count
             
             # Draw connections between physically adjacent qubits in the same patch
@@ -327,13 +327,13 @@ class MappingVisualizer:
                                color=patch_color, alpha=0.5,
                                linewidth=2, linestyle='--', zorder=2)
                         connections_count += 1
-            print(f"[DEBUG] Drew {connections_count} connections for patch {patch_idx}")
+            logger.debug("Drew %s connections for patch %s", connections_count, patch_idx)
         
-        print(f"[DEBUG] Total mapped qubits: {mapped_count}")
+        logger.debug("Total mapped qubits: %s", mapped_count)
         
         # Draw inter-patch connections
         if 'inter_patch_connectivity' in mapping_info:
-            print(f"[DEBUG] Processing {len(mapping_info['inter_patch_connectivity'])} inter-patch connections")
+            logger.debug("Processing %s inter-patch connections", len(mapping_info['inter_patch_connectivity']))
             for key, connection_info in mapping_info['inter_patch_connectivity'].items():
                 # Parse the key for patch indices (handle both tuple and string cases)
                 if isinstance(key, tuple):
@@ -366,7 +366,7 @@ class MappingVisualizer:
                                linewidth=2, linestyle='-.',
                                zorder=2,
                                label=f'Inter-patch link (d={connection_info.get("distance", "N/A")})')
-                        print(f"[DEBUG] Drew connection between patches {patch1} and {patch2}")
+                        logger.debug("Drew connection between patches %s and %s", patch1, patch2)
         
         # Add legend
         handles, labels = ax.get_legend_handles_labels()
@@ -389,10 +389,10 @@ class MappingVisualizer:
             pad_y = (max_y - min_y) * 0.1 if max_y > min_y else 1
             ax.set_xlim(min_x - pad_x, max_x + pad_x)
             ax.set_ylim(min_y - pad_y, max_y + pad_y)
-            print(f"[DEBUG][MappingVisualizer] Set axis limits x:[{min_x - pad_x}, {max_x + pad_x}], y:[{min_y - pad_y}, {max_y + pad_y}]")
+            logger.debug("Set axis limits x:[%s, %s], y:[%s, %s]", min_x - pad_x, max_x + pad_x, min_y - pad_y, max_y + pad_y)
         else:
-            print("[DEBUG][MappingVisualizer] No positions to set axis limits.")
-        print(f"[DEBUG][MappingVisualizer] Finished plotting. Mapped qubits: {mapped_count}, Unused qubits: {len(unused_qubits) if 'unused_qubits' in locals() else 0}")
+            logger.debug("No positions to set axis limits.")
+        logger.debug("Finished plotting. Mapped qubits: %s, Unused qubits: %s", mapped_count, (len(unused_qubits) if 'unused_qubits' in locals() else 0))
     
     def _are_physically_adjacent(self, pq1: int, pq2: int, device_info: Dict[str, Any]) -> bool:
         """Check if two physical qubits are adjacent in the device."""
@@ -461,7 +461,7 @@ class MappingVisualizer:
         
         # Defensive check for qubit_positions
         if 'qubit_positions' not in device_info:
-            print("[ERROR] device_info is missing 'qubit_positions'. Cannot create device graph.")
+            logger.error("device_info is missing 'qubit_positions'. Cannot create device graph.")
             return G
         
         # Add nodes
@@ -511,5 +511,5 @@ class MappingVisualizer:
                 row = idx // cols
                 col = idx % cols
                 positions[q] = (col, row)
-        print(f"[DEBUG][MappingVisualizer] Generated synthetic qubit positions for {device_info.get('device_name', '?')}: {positions}")
-        return positions 
+        logger.debug("Generated synthetic qubit positions for %s: %s", device_info.get('device_name', '?'), positions)
+        return positions

@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from configuration_management.config_manager import ConfigManager
 from hardware_abstraction.device_abstraction import DeviceAbstraction
 from scode.heuristic_layer.heuristic_initialization_layer import HeuristicInitializationLayer
@@ -179,3 +179,15 @@ class SurfaceCode:
         mapping_constraints['patch_shapes'] = patch_shapes
         print(f"[DEBUG] get_multi_patch_mapping: final patch_shapes={patch_shapes}")
         return mapping 
+
+    def get_single_patch_mapping(self, code_distance: int, layout_type: str, mapping_constraints: Optional[Dict[str, Any]] = None):
+        """Compatibility wrapper that enforces a single logical patch mapping.
+
+        This routes through get_multi_patch_mapping to keep a consistent return shape.
+        """
+        constraints = (mapping_constraints or {}).copy()
+        # Ensure single logical qubit without code switching
+        constraints['num_logical_qubits'] = 1
+        if constraints.get('require_code_switching', False):
+            constraints['require_code_switching'] = False
+        return self.get_multi_patch_mapping(code_distance, layout_type, constraints)

@@ -1566,6 +1566,12 @@ include_package_data=True,
 
 **Action Required:** ✅ Test package installation, verify all files included
 
+**Resolutions (Applied Oct 1, 2025):**
+- Updated `setup.py` to rely on `MANIFEST.in` and added optional extras:
+  - `security`: `cryptography`, `keyring`
+  - `full`: now includes `cryptography`, `keyring`
+- Expanded `MANIFEST.in` to include `privacy/`, `utils/`, `schemas/*.yaml|*.json`, and `assets/` (including `assets/screenshots/`).
+
 ---
 
 ### 11.1.4 Missing GUI Entry Point (CRITICAL SEVERITY)
@@ -1621,6 +1627,9 @@ def save_config(self, config_name: str = 'workflow_policy'):
 
 **Action Required:** Refactor to use `ConfigManager.save_config()` instead of direct file writes
 
+**Resolutions (Applied Oct 1, 2025):**
+- Added `save_config()` in `orchestration_controller/orchestrator.py` that writes via `ConfigManager.save_config()` and logs `config_saved`/`config_save_error` events.
+
 ---
 
 ### 11.1.6 Excessive Debug Print Statements (LOW SEVERITY)
@@ -1654,6 +1663,10 @@ logger.debug(f"mapping_info keys: {list(mapping_info.keys())}")
 - Replace all `print()` with proper `logging` module
 - Add logging configuration in main entry points
 - Use log levels appropriately (DEBUG, INFO, WARNING, ERROR)
+
+**Resolutions (Applied Oct 1, 2025):**
+- Replaced `print()` with `logging` in `circuit_designer/visualization/mapping_visualizer.py`.
+- Replaced `print()` with `logging` in `execution_simulation/execution_simulator.py`; introduced debug/error logs and masked key logs.
 
 ---
 
@@ -1749,6 +1762,9 @@ def get_single_patch_mapping(self, circuit, device_info, config):
 ```
 
 **Recommendation:** Option 1 - Maintain backward compatibility
+
+**Resolutions (Applied Oct 1, 2025):**
+- Implemented `get_single_patch_mapping()` wrapper in `scode/heuristic_layer/surface_code.py` that enforces a single logical patch and routes to `get_multi_patch_mapping()` to maintain a consistent return shape.
 
 ---
 
@@ -2279,6 +2295,10 @@ pip freeze > requirements-pinned.txt
 pip-compile requirements.in
 ```
 
+**Resolutions (Applied Oct 1, 2025):**
+- `requirements-pinned.txt` already present (updated timestamp). Keep `requirements.txt` as baseline.
+- Documented optional extras in `setup.py` (`qiskit`, `security`, `full`).
+
 ---
 
 ### 11.5.2 Optional Dependencies Not Clearly Marked
@@ -2318,6 +2338,10 @@ def require_qiskit(func):
         return func(*args, **kwargs)
     return wrapper
 ```
+
+**Resolutions (Applied Oct 1, 2025):**
+- Clarified optional dependency handling in README and extras in `setup.py`.
+- Updated `execution_simulation/execution_simulator.py` to degrade gracefully when Qiskit is unavailable and to use `CredentialManager`.
 
 ---
 

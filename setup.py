@@ -42,10 +42,16 @@ setup(
             'qiskit-aer',
             'qiskit-ibm-runtime',
         ],
+        'security': [
+            'cryptography',
+            'keyring',
+        ],
         'full': [
             'qiskit>=1.0',
             'qiskit-aer',
             'qiskit-ibm-runtime',
+            'cryptography',
+            'keyring',
         ]
     },
     entry_points={
@@ -54,15 +60,4 @@ setup(
         ],
     },
     include_package_data=True,
-    package_data={
-        '': [
-            'configs/*.json',
-            'configs/*.yaml',
-            'schemas/*.yaml',
-            'schemas/*.json',
-            'assets/*.svg',
-            'assets/*.png',
-            'assets/screenshots/*.png',
-        ],
-    },
 ) 

@@ -7,6 +7,10 @@ from typing import List, Dict, Any, Optional, Callable
 from configuration_management.config_manager import ConfigManager
 import importlib.resources
 from hardware_abstraction.device_abstraction import DeviceAbstraction
+import logging
+from utils.credential_manager import CredentialManager
+
+logger = logging.getLogger(__name__)
 
 try:
     # Qiskit 4.x: QuantumCircuit is still imported from qiskit
@@ -15,7 +19,7 @@ try:
     from qiskit_ibm_runtime import QiskitRuntimeService
     QISKIT_AVAILABLE = True
 except ImportError as e:
-    print(f'[IMPORT ERROR] {e}')
+    logger.debug('Qiskit import error: %s', e)
     QISKIT_AVAILABLE = False
 
 class ExecutionSimulator:
@@ -49,24 +53,25 @@ class ExecutionSimulator:
         device_info = self._load_device_info(provider, device_name)
         api_key = None
         if provider not in ['local', 'simulator']:
-            api_key = ConfigManager.get_api_key(provider)
+            cm = CredentialManager()
+            api_key = cm.get(provider) or ConfigManager.get_api_key(provider)
             if not api_key:
-                print(f"[ERROR] No API key found for provider {provider}. Please set it in .env.")
-                raise RuntimeError(f"No API key found for provider {provider}. Please set it in .env.")
+                logger.error("No API key found for provider %s. Set via system keyring or .env.", provider)
+                raise RuntimeError(f"No API key found for provider {provider}. Please set it securely.")
         return self._run_backend_job(circuit, provider, device_name, device_info, run_config, api_key)
 
     def _run_backend_job(self, circuit, provider, device_name, device_info, run_config, api_key):
-        print(f"[DEBUG] QISKIT_AVAILABLE: {QISKIT_AVAILABLE}")
-        print(f"[DEBUG] Provider: {provider}, Device: {device_name}")
+        logger.debug("QISKIT_AVAILABLE: %s", QISKIT_AVAILABLE)
+        logger.debug("Provider: %s, Device: %s", provider, device_name)
         if provider == 'ibm':
             if not QISKIT_AVAILABLE:
-                print("[ERROR] Qiskit is not installed. Please install qiskit and qiskit-ibm-runtime to run on IBM hardware.")
+                logger.error("Qiskit not installed. Install qiskit and qiskit-ibm-runtime to run on IBM hardware.")
                 return None
             if not api_key:
                 raise RuntimeError("No IBM API key found. Please set ibm_api_key in .env.")
             # Debug: print masked API key
             masked_key = api_key[:4] + "..." + api_key[-4:] if len(api_key) > 8 else "(too short to display)"
-            print(f"[DEBUG] Using IBM API key: {masked_key}")
+            logger.debug("Using IBM API key: %s", masked_key)
             try:
                 service = QiskitRuntimeService(channel="ibm_quantum", token=api_key)
                 qiskit_backend = service.backend(device_name)
@@ -86,20 +91,20 @@ class ExecutionSimulator:
                         data = result.data()
                         counts = getattr(data, 'counts', {}) if hasattr(data, 'counts') else {}
                 except Exception as ie:
-                    print(f"[WARN] Could not extract counts from IBM result: {ie}")
+                    logger.warning("Could not extract counts from IBM result: %s", ie)
                 with self.lock:
                     self.job_results[job_id] = {'backend': 'ibm', 'counts': counts}
                     self.job_status[job_id] = 'done'
-                print(f"[DEBUG] IBM job completed. Job ID: {job_id}")
+                logger.debug("IBM job completed. Job ID: %s", job_id)
                 return job_id
             except Exception as e:
-                print(f"[ERROR] IBM execution failed: {e}")
+                logger.error("IBM execution failed: %s", e)
                 if '401' in str(e) or 'Unauthorized' in str(e):
-                    print("[FATAL] IBM API key is invalid or expired. Please check your ibm_api_key in .env, or generate a new one at https://quantum-computing.ibm.com/account.")
+                    logger.error("IBM API key invalid/expired. Update credentials.")
                 raise
         elif provider == 'local' or provider == 'simulator':
             if not QISKIT_AVAILABLE:
-                print("[ERROR] Qiskit is not installed. Please install qiskit to run local simulations.")
+                logger.error("Qiskit not installed. Install qiskit to run local simulations.")
                 return None
             sim_backend = Aer.get_backend(device_name) if device_name in Aer.backends() else Aer.get_backend('qasm_simulator')
             qc = self._dict_to_qiskit_circuit(circuit)
@@ -111,7 +116,7 @@ class ExecutionSimulator:
             try:
                 counts = result.get_counts() if hasattr(result, 'get_counts') else {}
             except Exception as e:
-                print(f"[WARN] Aer result get_counts failed: {e}")
+                logger.warning("Aer result get_counts failed: %s", e)
             job_id = getattr(job, 'job_id', lambda: 'local_sim')()
             with self.lock:
                 self.job_results[job_id] = {'backend': 'local', 'counts': counts}

@@ -26,6 +26,17 @@ The framework is composed of the following modular components:
 
 All parameters, including RL agent settings, curriculum phases, reward weights, and hardware profiles, are specified in YAML/JSON config files. No hardcoded values are present in the codebase.
 
+## Updates (Oct 1, 2025)
+
+- Packaging now relies on `MANIFEST.in` for resources. Optional extras added in `setup.py`:
+  - `qiskit`: IBM/Aer backends
+  - `security`: `cryptography`, `keyring`
+  - `full`: all optional deps (`qiskit` + `security`)
+- Single-patch mapping restored: `scode/heuristic_layer/surface_code.py::get_single_patch_mapping()` wraps `get_multi_patch_mapping()` with one logical patch.
+- Logging cleanup: replaced `print()` with `logging` in `circuit_designer/visualization/mapping_visualizer.py` and `execution_simulation/execution_simulator.py`.
+- Credentials: `execution_simulation/execution_simulator.py` now uses `utils/credential_manager.CredentialManager` (falls back to `.env` via `ConfigManager`).
+- MANIFEST includes `privacy/`, `utils/`, `schemas/*.yaml|*.json`, and `assets/`.
+
 ## Current Architecture (Mermaid)
 
 ```mermaid
