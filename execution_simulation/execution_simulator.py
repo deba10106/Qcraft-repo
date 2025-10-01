@@ -119,7 +119,6 @@ class ExecutionSimulator:
             return job_id
         else:
             raise NotImplementedError(f"Provider {provider} not supported for execution.")
-            raise NotImplementedError(f"Provider {provider} not supported for execution.")
 
     def _dict_to_qiskit_circuit(self, circuit: dict) -> 'QuantumCircuit':
         if not QISKIT_AVAILABLE:

@@ -124,7 +124,7 @@ def main():
             print(f"[INFO] Saving checkpoint: {artifact_path}")
             model.save(artifact_path)
             logger.log_event('checkpoint_saved', {'run_id': run_id, 'artifact_path': artifact_path, 'step': t+save_interval}, level='INFO')
-        reporter.finish()
+        progress_callback.finish()
         logger.log_event('curriculum_stage_completed', {'run_id': run_id, 'stage_idx': stage_idx+1}, level='INFO')
         print(f"[INFO] Finished stage {stage_idx+1}")
     logger.log_event('run_completed', {'run_id': run_id, 'artifact_dir': artifact_dir}, level='INFO')

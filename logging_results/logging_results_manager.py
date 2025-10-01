@@ -184,12 +184,12 @@ class LoggingResultsManager:
             self._send_to_db(run_id, result)
 
     def _send_to_cloud(self, run_id: str, result: dict):
-        # Placeholder for cloud backend integration
-        pass
+        # Cloud backend integration not implemented; emit structured log to stdout for observability
+        print(json.dumps({'level': 'INFO', 'event': 'cloud_backend_not_implemented', 'run_id': run_id, 'backend': self.cloud_backend}))
 
     def _send_to_db(self, run_id: str, result: dict):
-        # Placeholder for DB backend integration
-        pass
+        # DB backend integration not implemented; emit structured log to stdout for observability
+        print(json.dumps({'level': 'INFO', 'event': 'db_backend_not_implemented', 'run_id': run_id, 'backend': self.db_backend}))
 
     def get_result(self, run_id: str) -> dict:
         with self.lock:

@@ -55,9 +55,14 @@ setup(
     },
     include_package_data=True,
     package_data={
-        'scode': ['code_switcher/*.py'],
-        'configs': ['*.json', '*.yaml'],
-        'schemas': ['*.yaml'],
-        'assets': ['*.svg'],
+        '': [
+            'configs/*.json',
+            'configs/*.yaml',
+            'schemas/*.yaml',
+            'schemas/*.json',
+            'assets/*.svg',
+            'assets/*.png',
+            'assets/screenshots/*.png',
+        ],
     },
 ) 

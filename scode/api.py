@@ -5,7 +5,7 @@ import io
 import numpy as np
 import json, yaml
 from code_switcher.code_switcher import CodeSwitcher
-from logging_results import LoggingResultsManager
+from logging_results.logging_results_manager import LoggingResultsManager
 import uuid
 import math
 import matplotlib.pyplot as plt
@@ -44,7 +44,10 @@ class SurfaceCodeAPI:
     and generating optimized layouts.
     """
     def __init__(self, config_overrides: Optional[Dict[str, Any]] = None, device_overrides: Optional[Dict[str, Any]] = None):
-        print("[DEBUG][API] SurfaceCodeAPI.__init__ CALLED")
+        try:
+            self.logger.log_event('api_init_called', {}, level='DEBUG')
+        except Exception:
+            print("[DEBUG][API] SurfaceCodeAPI.__init__ CALLED")
         """
         Initialize the Surface Code API with a configuration.
         Args:
@@ -55,18 +58,31 @@ class SurfaceCodeAPI:
         ConfigManager.load_registry()
         base_config = ConfigManager.get_config('multi_patch_rl_agent')
         self.config = deep_merge(base_config, config_overrides)
-        print(f"[DEBUG][API INIT] self.config keys: {list(self.config.keys())}")
-        print(f"[DEBUG][API INIT] reward_function section: {self.config.get('reward_function', None)}")
+        # Debug (prefer logger once available)
+        try:
+            self.logger.log_event('api_init_debug', {'config_keys': list(self.config.keys()), 'reward_function': self.config.get('reward_function')}, level='DEBUG')
+        except Exception:
+            print(f"[DEBUG][API INIT] self.config keys: {list(self.config.keys())}")
+            print(f"[DEBUG][API INIT] reward_function section: {self.config.get('reward_function', None)}")
         # Validate config against schema if available
         try:
             valid = ConfigManager.validate_config('multi_patch_rl_agent')
             if not valid:
-                print("[WARNING][API INIT] multi_patch_rl_agent config failed schema validation. Proceeding with caution.")
+                try:
+                    self.logger.log_event('schema_validation_warning', {'module': 'multi_patch_rl_agent'}, level='WARNING')
+                except Exception:
+                    print("[WARNING][API INIT] multi_patch_rl_agent config failed schema validation. Proceeding with caution.")
         except Exception as e:
-            print(f"[WARNING][API INIT] Schema validation skipped: {e}")
+            try:
+                self.logger.log_event('schema_validation_warning', {'module': 'multi_patch_rl_agent', 'error': str(e)}, level='WARNING')
+            except Exception:
+                print(f"[WARNING][API INIT] Schema validation skipped: {e}")
         # Failsafe: if reward_function missing, load from base_config
         if 'reward_function' not in self.config or not self.config['reward_function']:
-            print("[WARNING][API INIT] reward_function missing after merge, loading from base_config!")
+            try:
+                self.logger.log_event('config_warning', {'message': 'reward_function missing after merge, loading from base_config'}, level='WARNING')
+            except Exception:
+                print("[WARNING][API INIT] reward_function missing after merge, loading from base_config!")
             self.config['reward_function'] = base_config.get('reward_function', {})
         self.surface_code_config = self.config.get('multi_patch_rl_agent', {}).get('environment', {})
         self.advanced_constraints = self.config.get('advanced_constraints', {})
@@ -541,7 +557,16 @@ class SurfaceCodeAPI:
             d += 2  # Only odd distances
         # Cap at a reasonable maximum (e.g., 15)
         max_d = min(max_d, 15)
-        print(f"[DEBUG] Calculated max code distance: {max_d} for {layout_type} layout with {logical_qubits} logical qubits on {max_qubits} physical qubits (using {num_patches} patches)")
+        try:
+            self.logger.log_event('calculated_max_code_distance', {
+                'max_d': max_d,
+                'layout_type': layout_type,
+                'logical_qubits': logical_qubits,
+                'max_qubits': max_qubits,
+                'num_patches': num_patches
+            }, level='DEBUG')
+        except Exception:
+            print(f"[DEBUG] Calculated max code distance: {max_d} for {layout_type} layout with {logical_qubits} logical qubits on {max_qubits} physical qubits (using {num_patches} patches)")
         return max_d
 
     def list_supported_logical_gates(self, layout_type: str = None, code_distance: int = None, logical_operators: dict = None) -> List[str]:
@@ -599,7 +624,10 @@ class SurfaceCodeAPI:
         return os.path.abspath(os.path.join(output_dir, 'training_artifacts'))
 
     def train_surface_code_agent(self, provider: str, device: str, layout_type: str, code_distance: int, config_overrides: Optional[dict] = None, log_callback=None, run_id=None) -> dict:
-        print("[DEBUG][API] train_surface_code_agent CALLED")
+        try:
+            self.logger.log_event('train_surface_code_agent_called', {'provider': provider, 'device': device, 'layout': layout_type, 'code_distance': code_distance}, level='DEBUG')
+        except Exception:
+            print("[DEBUG][API] train_surface_code_agent CALLED")
         """
         Train an RL agent for the specified parameters. Returns dict with path to trained agent and run_id.
 
@@ -609,8 +637,11 @@ class SurfaceCodeAPI:
         """
         import time
         config = self.config
-        print(f"[DEBUG][TRAIN] config keys: {list(config.keys())}")
-        print(f"[DEBUG][TRAIN] reward_function section: {config.get('reward_function', None)}")
+        try:
+            self.logger.log_event('train_config_debug', {'config_keys': list(config.keys()), 'reward_function': config.get('reward_function')}, level='DEBUG')
+        except Exception:
+            print(f"[DEBUG][TRAIN] config keys: {list(config.keys())}")
+            print(f"[DEBUG][TRAIN] reward_function section: {config.get('reward_function', None)}")
         mp_config = config.get('multi_patch_rl_agent', {})
         agent_config = mp_config.get('agent', {})
         env_config = mp_config.get('environment', {})
@@ -821,34 +852,46 @@ class SurfaceCodeAPI:
             layout_type = self.list_layout_types()[0]
         # Get logical qubit count from circuit or config
         logical_qubits = self._get_logical_qubit_count()
-        # Always try the smallest valid code distance first
+        # Compute valid distances and select appropriate code_distance
         code_distances = self.list_code_distances(device, layout_type)
         if not code_distances:
+            try:
+                self.logger.log_event('no_valid_code_distances', {'device': device, 'layout_type': layout_type}, level='ERROR')
+            except Exception:
+                print(f"[ERROR] No valid code distances for device {device} and layout {layout_type}")
             raise ValueError(f"No valid code distances for device {device} and layout {layout_type}")
-        # If code_distance is not provided, use the smallest valid one
         if code_distance is None:
             code_distance = code_distances[0]
-            print(f"[INFO] Using smallest valid code distance: {code_distance} for {layout_type} layout")
-        # Validate device
-        available_devices = self.list_available_devices()
-        if device not in available_devices:
-            raise ValueError(f"Device '{device}' not found in available devices: {available_devices}")
-        # Validate code distance
-        if code_distance not in code_distances:
-            print(f"[WARNING] Code distance {code_distance} not in calculated valid distances {code_distances} for device '{device}' and layout '{layout_type}'")
-            print(f"[WARNING] Adjusting to nearest valid code distance")
-            # Find the nearest valid code distance
+        elif code_distance not in code_distances:
+            orig_cd = code_distance
             if code_distance < code_distances[0]:
                 code_distance = code_distances[0]
             elif code_distance > code_distances[-1]:
                 code_distance = code_distances[-1]
             else:
                 code_distance = min(code_distances, key=lambda x: abs(x - code_distance))
-            print(f"[INFO] Adjusted code distance to {code_distance}")
+            try:
+                self.logger.log_event('adjusted_invalid_code_distance', {'requested': orig_cd, 'adjusted_to': code_distance, 'valid': code_distances}, level='WARNING')
+            except Exception:
+                print(f"[WARNING] Adjusted invalid code distance {orig_cd} to {code_distance} from valid set {code_distances}")
+        # Log selected/adjusted code distance
+        try:
+            self.logger.log_event('selected_code_distance', {'code_distance': code_distance, 'layout_type': layout_type}, level='INFO')
+        except Exception:
+            print(f"[INFO] Selected code distance: {code_distance} for {layout_type}")
         # Reload device info for the requested device
         device_info = self.hardware_info
         h_layer = HeuristicInitializationLayer(self.config, device_info)
         code = h_layer.generate_surface_code(code_distance, layout_type, visualize=False)
+        # Log that a surface code was generated (tiny patch)
+        try:
+            self.logger.log_event('surface_code_generated', {
+                'layout_type': layout_type,
+                'code_distance': code_distance,
+                'num_qubits': len(getattr(code, 'qubit_layout', {}) or {})
+            }, level='INFO')
+        except Exception:
+            pass
         # Patch: wrap single patch as code_spaces list for FT circuit builder compatibility
         patch_dict = {
             'name': 'code_space_0',
@@ -985,7 +1028,10 @@ class SurfaceCodeAPI:
         if 'circuit' not in self.config:
             self.config['circuit'] = {}
         self.config['circuit']['logical_qubits'] = count
-        print(f"[INFO] Updated logical qubit count to {count}") 
+        try:
+            self.logger.log_event('updated_logical_qubit_count', {'count': count}, level='INFO')
+        except Exception:
+            print(f"[INFO] Updated logical qubit count to {count}")
 
     def device_has_enough_qubits(self, device_info, required_qubits):
-        return device_info.get('max_qubits', 0) >= required_qubits 
+        return device_info.get('max_qubits', 0) >= required_qubits

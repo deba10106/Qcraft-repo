@@ -12,9 +12,12 @@ from matplotlib.collections import LineCollection, CircleCollection
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qtagg import NavigationToolbar2QT as NavigationToolbar
 from typing import Dict, Any, List, Tuple
+import logging
 
 from .color_schemes import ColorScheme
 from .device_grid_visualizer import DeviceGridVisualizer
+
+logger = logging.getLogger(__name__)
 
 
 class MappingVisualizer:
@@ -29,10 +32,10 @@ class MappingVisualizer:
     
     def draw_mapping(self, layout_result: Dict[str, Any], mapping_info: Dict[str, Any], device_info: Dict[str, Any]):
         """Draw the mapping visualization and return a FigureCanvas for embedding in Qt dialogs (PySide6)."""
-        print(f"[DEBUG][MappingVisualizer] draw_mapping called")
-        print(f"[DEBUG][MappingVisualizer] mapping_info keys: {list(mapping_info.keys())}")
-        print(f"[DEBUG][MappingVisualizer] device_info keys: {list(device_info.keys())}")
-        print(f"[DEBUG][MappingVisualizer] mapping_info logical_to_physical: {mapping_info.get('logical_to_physical', {})}")
+        logger.debug("draw_mapping called")
+        logger.debug(f"mapping_info keys: {list(mapping_info.keys())}")
+        logger.debug(f"device_info keys: {list(device_info.keys())}")
+        logger.debug(f"mapping_info logical_to_physical: {mapping_info.get('logical_to_physical', {})}")
         # Generate qubit positions on the fly if missing
         if 'qubit_positions' not in device_info or not device_info['qubit_positions']:
             device_info['qubit_positions'] = self._generate_qubit_positions(device_info)
@@ -165,18 +168,26 @@ class MappingVisualizer:
     
     def _compute_convex_hull(self, points: np.ndarray) -> np.ndarray:
         """Compute the convex hull of a set of points."""
-        # Simple implementation - in practice, use scipy.spatial.ConvexHull
-        # This is a placeholder that returns a rectangle boundary
-        min_x, min_y = np.min(points, axis=0)
-        max_x, max_y = np.max(points, axis=0)
-        
-        return np.array([
-            [min_x, min_y],
-            [max_x, min_y],
-            [max_x, max_y],
-            [min_x, max_y],
-            [min_x, min_y]
-        ])
+        # Prefer SciPy's ConvexHull when available; fallback to rectangle boundary
+        try:
+            if points is None or len(points) < 3:
+                raise ValueError("Need at least 3 points for a convex hull")
+            from scipy.spatial import ConvexHull  # type: ignore
+            hull = ConvexHull(points)
+            hull_pts = points[hull.vertices]
+            # Close the polygon by repeating the first point at the end
+            return np.vstack([hull_pts, hull_pts[0]])
+        except Exception:
+            # Fallback: rectangle boundary enclosing all points
+            min_x, min_y = np.min(points, axis=0)
+            max_x, max_y = np.max(points, axis=0)
+            return np.array([
+                [min_x, min_y],
+                [max_x, min_y],
+                [max_x, max_y],
+                [min_x, max_y],
+                [min_x, min_y]
+            ])
     
     def _draw_device_grid_with_mapping(self, mapping_info: Dict[str, Any], 
                                      device_info: Dict[str, Any], 

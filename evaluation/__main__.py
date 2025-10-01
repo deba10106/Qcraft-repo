@@ -1,16 +1,21 @@
 import os
-from scode.heuristic_layer.config_loader import ConfigLoader
+from configuration_management.config_manager import ConfigManager
 from .evaluation_framework import EvaluationFramework
 import yaml
 
-CONFIG_DIR = os.path.join(os.path.dirname(__file__), '../configs')
+ConfigManager.load_registry()
+CONFIG_DIR = os.path.dirname(ConfigManager.config_registry.get('hardware', 'configs/hardware.json'))
 SURFACE_CODE_CONFIG = os.path.join(CONFIG_DIR, 'surface_code_config.yaml')
-HARDWARE_CONFIG = os.path.join(CONFIG_DIR, 'hardware.json')
+HARDWARE_CONFIG = ConfigManager.config_registry.get('hardware', os.path.join(CONFIG_DIR, 'hardware.json'))
 
 
 def main():
     # Load config and hardware
-    config = ConfigLoader.load_yaml(SURFACE_CODE_CONFIG)
+    if os.path.exists(SURFACE_CODE_CONFIG):
+        with open(SURFACE_CODE_CONFIG, 'r') as f:
+            config = yaml.safe_load(f) or {}
+    else:
+        config = {}
     with open(HARDWARE_CONFIG, 'r') as f:
         hardware = yaml.safe_load(f)
     evaluator = EvaluationFramework(config)

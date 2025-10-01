@@ -45,6 +45,39 @@ flowchart LR
   DEV[DeviceAbstraction] --- ORCH
 ```
 
+## Training Flow (Family-Aware)
+
+```mermaid
+flowchart LR
+  CFG[configs/multi_patch_rl_agent.yaml] --> CF{{code_family}}
+  CF -->|surface| SEnv[SurfaceCodeEnvironment]
+  CF -->|qldpc| QEnv[QLDPCEnvironment]
+  HW[hardware.json -> DeviceAbstraction] --> SEnv
+  HW --> QEnv
+  SEnv --> PPO[PPO (SB3)]
+  QEnv --> PPO
+  PPO --> ART[training_artifacts/{code_family}_*.zip]
+```
+
+## Sequence Diagram: Family-Aware Training & Artifacts
+
+```mermaid
+sequenceDiagram
+  participant CLI as CLI/GUI
+  participant CFG as ConfigManager
+  participant ENV as Env (Surface/QLDPC)
+  participant PPO as PPO (SB3)
+  participant LOG as Logger
+  participant FS as Artifact Store
+
+  CLI->>CFG: load multi_patch_rl_agent.yaml
+  CFG-->>CLI: environment.code_family
+  CLI->>ENV: init SurfaceCodeEnvironment or QLDPCEnvironment
+  ENV->>PPO: train(total_timesteps, callbacks)
+  PPO-->>LOG: progress, metrics
+  PPO-->>FS: save checkpoint {code_family}_*.zip
+```
+
 ## Current Workflow (Mermaid)
 
 ```mermaid
@@ -60,6 +93,34 @@ flowchart LR
   ORCH --> CS[Code Switching]
   ORCH --> EXE[Execution / Simulation]
   ORCH --> LOG[Logging]
+```
+
+## Sequence Diagram: Family Selection & Mapping
+
+```mermaid
+sequenceDiagram
+  participant GUI
+  participant WB as WorkflowBridge
+  participant ORCH as Orchestrator
+  participant PD as PatchDiscoverer
+  participant REG as CodePatchRegistry
+  participant API as FamilyAPI (Surface/QLDPC)
+  participant MAP as Mapper/RL
+  participant FT as FT Builder
+  participant LOG as Logger
+
+  GUI->>WB: Run Workflow
+  WB->>ORCH: run_workflow(circuit, config)
+  ORCH->>PD: discover(circuit)
+  PD-->>ORCH: patches, mapping_hints
+  ORCH->>REG: get_family_api(patch.family)
+  REG-->>ORCH: API
+  ORCH->>API: generate_multi_patch_layout(...)
+  ORCH->>MAP: family-aware mapping (RL/heuristic)
+  MAP-->>ORCH: mapping_info
+  ORCH->>FT: assemble_fault_tolerant_circuit(...)
+  FT-->>ORCH: ft_circuit
+  ORCH->>LOG: log events, KPIs
 ```
 
 ## Screenshots

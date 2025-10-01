@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from stable_baselines3 import PPO
-from scode.heuristic_layer.config_loader import ConfigLoader
 from scode.heuristic_layer.heuristic_initialization_layer import HeuristicInitializationLayer
 from scode.graph_transformer.graph_transformer import ConnectivityAwareGraphTransformer
 from scode.rl_agent.environment import SurfaceCodeEnvironment
@@ -145,7 +144,8 @@ def plot_combined_figure(surface_code, hardware, mapping, d, layout_type, grid_c
 # --- Main Test Script ---
 def main():
     # Load config and hardware profile
-    config = ConfigLoader.load_yaml('configs/surface_code_config.yaml')
+    with open('configs/surface_code_config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
     device = config['device']
     h_layer = HeuristicInitializationLayer(config, device)
     transformer = ConnectivityAwareGraphTransformer(

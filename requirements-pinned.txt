@@ -1,0 +1,49 @@
+# QCraft Pinned Requirements
+# Generated: October 1, 2025
+# Python 3.9+
+
+# GUI Framework
+PySide6==6.9.2
+PySide6-Addons==6.9.2
+PySide6-Essentials==6.9.2
+
+# Configuration & Validation
+PyYAML==6.0.1
+jsonschema==4.19.1
+python-dotenv==1.0.0
+
+# Graph & Visualization
+networkx==3.1
+matplotlib==3.8.0
+numpy==1.24.3
+
+# Reinforcement Learning
+stable-baselines3==2.1.0
+gymnasium==0.29.1
+torch==2.1.0
+tensorboard==2.14.1
+
+# Machine Learning
+scikit-learn==1.3.1
+pandas==2.1.1
+
+# Quantum Computing
+stim==1.12.0
+pymatching==2.2.0
+
+# Cryptography (for privacy features)
+cryptography==41.0.5
+keyring==24.2.0
+
+# Optional: Qiskit (install with: pip install qcraft[qiskit])
+# qiskit>=1.0.0
+# qiskit-aer>=0.13.0
+# qiskit-ibm-runtime>=0.15.0
+
+# Development Dependencies (optional)
+# pytest==7.4.2
+# pytest-cov==4.1.0
+# mypy==1.5.1
+# black==23.9.1
+# flake8==6.1.0
+# sphinx==7.2.6

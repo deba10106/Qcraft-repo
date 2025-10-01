@@ -47,4 +47,50 @@ class EvaluationFramework:
     def evaluate_hardware_adaptability(self, results: Any) -> Dict[str, Any]:
         # Assess performance across hardware profiles from results
         compatibility = results.get('hardware_compatibility', 1.0) if isinstance(results, dict) else 1.0
-        return {'hardware_compatibility': compatibility} 
+        return {'hardware_compatibility': compatibility}
+
+    def comprehensive_validate_layout(self, layout: Dict[str, Any], hardware: Dict[str, Any], noise_model: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Wrapper that computes core KPIs for a layout: logical error rate and resource metrics.
+        Returns a dict suitable for basic comparisons and reporting.
+        """
+        result = {}
+        try:
+            ler = self.evaluate_logical_error_rate(layout, hardware, noise_model)
+        except Exception as e:
+            ler = None
+            result['ler_error'] = str(e)
+        result['logical_error_rate'] = ler
+        result['resource_efficiency'] = self.evaluate_resource_efficiency(layout)
+        result['valid'] = (ler is not None)
+        return result
+
+    def run_evaluation_scenarios(self, scenarios: list) -> list:
+        """
+        Minimal runner: for each scenario dict with keys layout, hardware, noise_model,
+        return comprehensive validation results.
+        """
+        outputs = []
+        for sc in scenarios or []:
+            layout = sc.get('layout', {})
+            hardware = sc.get('hardware', {})
+            noise = sc.get('noise_model', {})
+            outputs.append(self.comprehensive_validate_layout(layout, hardware, noise))
+        return outputs
+
+    def compare_against_baseline(self, result: Dict[str, Any], baseline: Dict[str, Any]) -> Dict[str, Any]:
+        """Return simple diffs between a result and a baseline for key KPIs."""
+        cmp = {
+            'delta_ler': None,
+            'delta_physical_qubits': None,
+        }
+        if result and baseline:
+            r_ler = result.get('logical_error_rate')
+            b_ler = baseline.get('logical_error_rate')
+            if r_ler is not None and b_ler is not None:
+                cmp['delta_ler'] = r_ler - b_ler
+            r_phys = (result.get('resource_efficiency') or {}).get('physical_qubits')
+            b_phys = (baseline.get('resource_efficiency') or {}).get('physical_qubits')
+            if r_phys is not None and b_phys is not None:
+                cmp['delta_physical_qubits'] = r_phys - b_phys
+        return cmp

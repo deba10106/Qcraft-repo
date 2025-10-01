@@ -3,8 +3,11 @@ from gymnasium import spaces
 import numpy as np
 import networkx as nx
 import random
+from scode.rl_agent.env_constants import MAX_PATCHES, MAX_QUBITS, NUM_FEATURES
+from scode.utils.decoder_interface import DecoderInterface
+from scode.rl_agent.env_interface import RLMappingEnvInterface
 
-class QLDPCEnvironment(gym.Env):
+class QLDPCEnvironment(gym.Env, RLMappingEnvInterface):
     metadata = {'render.modes': ['human', 'rgb_array']}
 
     def __init__(self, config, hardware_graph, qldpc_generator=None, reward_engine=None, logger=None):
@@ -15,9 +18,24 @@ class QLDPCEnvironment(gym.Env):
         self.patch_count = int(self.config.get('multi_patch_rl_agent', {}).get('environment', {}).get('patch_count', 1))
         self.qldpc_generator = qldpc_generator  # may be None; created on reset if missing
         self.reward_engine = reward_engine
-        # Simple continuous spaces to start; will be expanded in follow-up patches
-        self.action_space = spaces.Box(low=0.0, high=1.0, shape=(4,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(128,), dtype=np.float32)
+        # Align spaces with SurfaceCodeEnvironment for SB3 compatibility
+        self.action_space = spaces.Box(
+            low=np.array([0, 0, 0, 0, 0, 0], dtype=np.float32),
+            high=np.array([
+                MAX_PATCHES-1,  # patch_idx
+                2,              # action_type (SWAP/REWIRE/ASSIGN)
+                MAX_QUBITS-1,   # qubit1
+                MAX_QUBITS-1,   # qubit2
+                MAX_QUBITS-1,   # param1
+                1               # param2
+            ], dtype=np.float32),
+            dtype=np.float32
+        )
+        self.observation_space = spaces.Dict({
+            'node_features': spaces.Box(low=0, high=1, shape=(MAX_PATCHES * MAX_QUBITS, NUM_FEATURES), dtype=np.float32),
+            'adjacency': spaces.Box(low=0, high=1, shape=(MAX_PATCHES * MAX_QUBITS, MAX_QUBITS), dtype=np.float32),
+            'action_mask': spaces.Box(low=0, high=1, shape=(MAX_PATCHES * 3, MAX_QUBITS, MAX_QUBITS), dtype=np.float32)
+        })
         self._steps = 0
         self._max_steps = int(self.config.get('rl_agent', {}).get('max_steps_per_episode', 100))
 
@@ -47,11 +65,51 @@ class QLDPCEnvironment(gym.Env):
             sc_qubits = list(getattr(code, 'qubit_layout', {}).keys()) if code else []
             mapping = {int(sc_q): int(hw_nodes[i % max(1, len(hw_nodes))]) for i, sc_q in enumerate(sc_qubits)}
             self.current_mappings.append(mapping)
-        return np.zeros(self.observation_space.shape, dtype=np.float32), {}
+        return self._build_observation(), {}
+
+    def _make_empty_observation(self):
+        node_features = np.zeros((MAX_PATCHES * MAX_QUBITS, NUM_FEATURES), dtype=np.float32)
+        adjacency = np.zeros((MAX_PATCHES * MAX_QUBITS, MAX_QUBITS), dtype=np.float32)
+        action_mask = self._get_action_masks()
+        return {
+            'node_features': node_features,
+            'adjacency': adjacency,
+            'action_mask': action_mask
+        }
+
+    def _get_action_masks(self):
+        """Minimal legal action mask based on current mappings (per patch)."""
+        masks = np.zeros((self.patch_count, 3, MAX_QUBITS, MAX_QUBITS), dtype=np.float32)
+        for i, mapping in enumerate(getattr(self, 'current_mappings', [])):
+            sc_qubits = list(mapping.keys())
+            code_adj = None
+            try:
+                code_adj = getattr(self.codes[i], 'adjacency_matrix', None)
+            except Exception:
+                code_adj = None
+            # Hardware connectivity for mask tightening (align with Surface env semantics)
+            conn = (self.hardware_graph or {}).get('qubit_connectivity', {})
+            for a_type in range(3):
+                for q1 in sc_qubits:
+                    for q2 in sc_qubits:
+                        if q1 == q2:
+                            continue
+                        # For SWAP/REWIRE (a_type 0/1), require HW adjacency when both are mapped
+                        if a_type in (0, 1):
+                            hw1 = mapping.get(int(q1))
+                            hw2 = mapping.get(int(q2))
+                            if hw1 is not None and hw2 is not None:
+                                if int(hw2) not in [int(n) for n in conn.get(int(hw1), [])]:
+                                    continue
+                        if a_type == 2 and code_adj is not None and not code_adj.has_edge(q1, q2):
+                            continue
+                        masks[i, a_type, int(q1), int(q2)] = 1.0
+        return masks.reshape(self.patch_count * 3, MAX_QUBITS, MAX_QUBITS)
 
     def step(self, action):
         self._steps += 1
-        obs = np.zeros(self.observation_space.shape, dtype=np.float32)
+        # Observation is a Dict; initialize an empty one (will be enriched later)
+        obs = self._build_observation()
         # Compute a minimal reward using reward_engine if available
         reward = 0.0
         if self.reward_engine is None:
@@ -65,8 +123,60 @@ class QLDPCEnvironment(gym.Env):
             r, _ = self.reward_engine.compute_reward(mapping_info, env_info={}, is_inference=False)
             reward = float(r)
         done = self._steps >= self._max_steps
-        info = {}
+        info = {
+            'mapping': (self.current_mappings[0] if self.current_mappings else {}),
+            'episode_step': self._steps,
+        }
+        # Best-effort logical error rate estimation (optional)
+        try:
+            code = self.codes[0] if self.codes else None
+            mapping0 = self.current_mappings[0] if self.current_mappings else {}
+            if code and mapping0:
+                noise_model = getattr(self, 'error_profile', {'p': 0.001})
+                ler = DecoderInterface.estimate_logical_error_rate(
+                    code, mapping0, noise_model,
+                    num_trials=getattr(self, 'ler_num_trials', 50),
+                    error_prob=getattr(self, 'ler_noise_prob', 0.001)
+                )
+                if ler is not None:
+                    info['ler'] = float(ler)
+                    info['logical_error_rate'] = float(ler)
+        except Exception:
+            pass
         return obs, reward, done, False, info
+
+    def _build_observation(self):
+        obs = self._make_empty_observation()
+        conn = (self.hardware_graph or {}).get('qubit_connectivity', {})
+        qprops = (self.hardware_graph or {}).get('qubit_properties', {})
+        for i, mapping in enumerate(getattr(self, 'current_mappings', [])):
+            for sc_q, hw_q in mapping.items():
+                if 0 <= int(hw_q) < MAX_QUBITS:
+                    idx = i * MAX_QUBITS + int(hw_q)
+                    # Feature[0]: error_rate from hardware properties (fallback 0.0)
+                    try:
+                        obs['node_features'][idx, 0] = float(qprops.get(int(hw_q), {}).get('readout_error', 0.0))
+                    except Exception:
+                        obs['node_features'][idx, 0] = 0.0
+                    # One-hot role similar to Surface env (1=data,2=ancilla_X,3=ancilla_Z,4=unassigned)
+                    role = None
+                    try:
+                        role = getattr(self.codes[i], 'qubit_layout', {}).get(int(sc_q), {}).get('type')
+                    except Exception:
+                        role = None
+                    role_idx = 4
+                    if role == 'data':
+                        role_idx = 1
+                    elif role == 'ancilla_X':
+                        role_idx = 2
+                    elif role == 'ancilla_Z':
+                        role_idx = 3
+                    obs['node_features'][idx, role_idx] = 1.0
+                    for nb in conn.get(int(hw_q), []):
+                        if 0 <= int(nb) < MAX_QUBITS:
+                            obs['adjacency'][idx, int(nb)] = 1.0
+        obs['action_mask'] = self._get_action_masks()
+        return obs
 
     def _connectivity_score(self) -> float:
         try:
@@ -90,3 +200,10 @@ class QLDPCEnvironment(gym.Env):
             return preserved / max(1, total)
         except Exception:
             return 0.0
+
+    # Interface utility
+    def get_mapping_info(self) -> dict:
+        return {
+            'mapping': (self.current_mappings[0] if self.current_mappings else {}),
+            'patch_count': self.patch_count
+        }

@@ -411,9 +411,20 @@ class CircuitEditor:
         # 3. Generate surface code layout
         layout = self.generate_surface_code_layout_backend(layout_type, code_distance, device_info['name'])
 
-        # 4. Transform to fault-tolerant circuit
-        mapping_info = {}  # Placeholder; in production, get from mapping step or surface code API
-        code_spaces = []   # Placeholder; in production, get from surface code API
+        # 4. Map to surface code and transform to fault-tolerant circuit
+        mapping_result = self.map_circuit_to_surface_code_backend(
+            device=device_info['name'],
+            layout_type=layout_type,
+            code_distance=code_distance,
+            provider=device_info.get('provider_name'),
+            config_overrides=None,
+            mapping_constraints=None,
+            circuit=self.circuit,
+            sweep_code_distance=False
+        )
+        # Support both orchestrator mapping_info and direct mapping dict
+        mapping_info = mapping_result.get('mapping_info', mapping_result)
+        code_spaces = layout.get('code_spaces', [])
         ft_circuit = self.assemble_fault_tolerant_circuit_backend(mapping_info, code_spaces, device_info)
         self.circuit = ft_circuit
         self._notify_change()

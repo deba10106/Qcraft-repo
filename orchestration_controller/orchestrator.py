@@ -19,6 +19,7 @@ from privacy.export_policy import apply_export_policy
 from provenance.manifest import generate_provenance_manifest
 from decoder_runtime.decoder import LocalDecoder
 from code_patches.registry import CodePatchRegistry
+from evaluation.kpis import compute_mapping_kpis
 
 # Utility for deep merging dicts (API > config)
 def deep_merge(base: dict, override: dict) -> dict:
@@ -190,6 +191,13 @@ class OrchestratorController:
                             None, user_config, progress_callback=progress_callback, mapping_constraints=mapping_constraints
                         )
                     step_results['mapping_info'] = mapping_info
+                    # Compute family-agnostic KPIs for dashboards/QA
+                    try:
+                        kpis = compute_mapping_kpis(mapping_info)
+                        step_results['mapping_kpis'] = kpis
+                        self.logger.log_event('mapping_kpis', {'workflow_id': workflow_id, 'kpis': kpis}, level='INFO')
+                    except Exception as e:
+                        self.logger.log_event('mapping_kpis_error', {'workflow_id': workflow_id, 'error': str(e)}, level='WARNING')
                     self.workflow_status[workflow_id]['steps'].append('circuit_mapped')
                 elif module == 'ft_builder':
                     # Prefer code_spaces from combined layout (family APIs include supported_logical_gates)
@@ -328,7 +336,7 @@ class OrchestratorController:
         mapping = surface_code.get_multi_patch_mapping(code_distance, layout_type, mapping_constraints)
         logical_to_physical = mapping.get('logical_to_physical', {})
         if not logical_to_physical:
-            print("[WARNING] Orchestrator: Empty logical_to_physical mapping received")
+            self.logger.log_event('mapping_warning', {'message': 'Empty logical_to_physical mapping received'}, level='WARNING')
         multi_patch_layout = mapping.get('multi_patch_layout', {})
         if multi_patch_layout:
             patch_count = len(multi_patch_layout)
@@ -340,10 +348,10 @@ class OrchestratorController:
                 for q, info in patch_layout.items():
                     if isinstance(info, dict) and 'type' in info:
                         qubit_types.add(info['type'])
-            print(f"[DEBUG] Orchestrator: multi_patch_layout has {patch_count} patches with {max_qubits} qubits")
-            print(f"[DEBUG] Orchestrator: Qubit types found: {qubit_types}")
+            self.logger.log_event('mapping_debug', {'patch_count': patch_count, 'max_qubits': max_qubits}, level='DEBUG')
+            self.logger.log_event('mapping_debug', {'qubit_types': list(qubit_types)}, level='DEBUG')
         else:
-            print("[WARNING] Orchestrator: Empty multi_patch_layout received")
+            self.logger.log_event('mapping_warning', {'message': 'Empty multi_patch_layout received'}, level='WARNING')
         mapping_info = {
             'device': device,
             'layout_type': layout_type,
@@ -363,7 +371,7 @@ class OrchestratorController:
         except ValueError as e:
             # Catch code distance/physical qubit constraint errors and return a user-friendly error
             error_msg = f"[FT Workflow Error] {str(e)}"
-            print(error_msg)
+            self.logger.log_event('ft_builder_error', {'error': str(e)}, level='ERROR')
             if progress_callback:
                 progress_callback(error_msg, 1.0)
             return {'status': 'failed', 'error': error_msg}
@@ -681,7 +689,7 @@ class OrchestratorController:
         try:
             ConfigManager.save_config('workflow_policy', config=self.config)
         except Exception as e:
-            print(f"[WARN] Failed to save workflow_policy to default path: {e}")
+            self.logger.log_event('policy_save_warning', {'error': str(e)}, level='WARNING')
 
     def get_workflow_policy(self) -> dict:
         """
