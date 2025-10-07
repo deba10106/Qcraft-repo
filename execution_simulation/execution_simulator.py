@@ -54,7 +54,8 @@ class ExecutionSimulator:
         api_key = None
         if provider not in ['local', 'simulator']:
             cm = CredentialManager()
-            api_key = cm.get(provider) or ConfigManager.get_api_key(provider)
+            service = 'ibm_quantum' if provider == 'ibm' else provider
+            api_key = cm.get_credential(service) or ConfigManager.get_api_key(provider)
             if not api_key:
                 logger.error("No API key found for provider %s. Set via system keyring or .env.", provider)
                 raise RuntimeError(f"No API key found for provider {provider}. Please set it securely.")

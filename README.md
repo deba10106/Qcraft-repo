@@ -37,6 +37,14 @@ All parameters, including RL agent settings, curriculum phases, reward weights, 
 - Credentials: `execution_simulation/execution_simulator.py` now uses `utils/credential_manager.CredentialManager` (falls back to `.env` via `ConfigManager`).
 - MANIFEST includes `privacy/`, `utils/`, `schemas/*.yaml|*.json`, and `assets/`.
 
+## Updates (Oct 2, 2025)
+
+- Security: `privacy/circuit_encryptor.py` now uses AES-256-GCM when a password is provided, with per-export random salt (16B) and nonce (12B). A header `QCGCM1` prefixes the payload. Key derivation uses PBKDF2-HMAC-SHA256 (200k iterations). If no password is provided, Fernet remains as a fallback.
+- Public API: `scode/api.py::SurfaceCodeAPI.get_single_patch_mapping()` exposes a stable single-patch mapping entrypoint that forwards to the unified mapper.
+- Optional deps guardrails: visualization requires `matplotlib`; RL training requires `stable-baselines3`. Clear import-time errors guide installation via extras, e.g. `pip install '.[full]'`.
+- Deprecations: legacy module entrypoints under `scode/*/__main__.py` are deprecated in favor of the API and GUI.
+- Logging: additional print-to-logging cleanup across mapping and RL paths.
+
 ## Current Architecture (Mermaid)
 
 ```mermaid
@@ -568,10 +576,14 @@ Select a provider and device in `configs/hardware.json`. Provider must match a d
 4. Edit `configs/gates.yaml` to define the set of quantum gates available in the circuit designer and backend modules. This file is required for the GUI and backend to function correctly.
 5. Run the RL agent training pipeline:
    
-   ```bash
-   python3 -m scode.rl_agent.__main__
-   ```
-6. Monitor training progress with TensorBoard:
+   - GUI: Launch `qcraft`, open the Training tab, and click "Start Training" under "Code Patch Optimizer".
+   - API (example):
+     ```python
+     from scode.api import SurfaceCodeAPI
+     api = SurfaceCodeAPI()
+     api.train_surface_code_agent(provider='ibm', device='ibm_hummingbird', layout_type='rotated', code_distance=3)
+     ```
+6. (Optional) Monitor training progress with TensorBoard:
    
    ```bash
    tensorboard --logdir ./outputs/runs

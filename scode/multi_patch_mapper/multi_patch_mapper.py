@@ -11,6 +11,9 @@ from scode.heuristic_layer.heuristic_initialization_layer import HeuristicInitia
 from scode.rl_agent.reward_engine import MultiPatchRewardEngine
 import glob
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def merge_configs(base: Dict[str, Any], override: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -104,12 +107,12 @@ class MultiPatchMapper:
             default_shape = 'rectangular'
             patch_shapes = (patch_shapes or []) + [default_shape] * (num_patches - len(patch_shapes or []))
         if len(patch_shapes) != num_patches:
-            print(f"[ERROR] patch_shapes length {len(patch_shapes)} does not match num_patches {num_patches}")
-            print(f"[ERROR] patch_shapes: {patch_shapes}")
-            print(f"[ERROR] mapping_constraints: {mapping_constraints}")
-            print(f"[ERROR] surface_code_objects: {surface_code_objects}")
+            logger.error("patch_shapes length %s does not match num_patches %s", len(patch_shapes), num_patches)
+            logger.error("patch_shapes: %s", patch_shapes)
+            logger.error("mapping_constraints: %s", mapping_constraints)
+            logger.error("surface_code_objects: %s", surface_code_objects)
             raise RuntimeError("patch_shapes and num_patches mismatch")
-        print(f"[DEBUG] Final patch_shapes used for mapping: {patch_shapes}")
+        logger.debug("Final patch_shapes used for mapping: %s", patch_shapes)
         heuristic = merged_config.get('mapping_heuristic', 'greedy')
         advanced_constraints = merged_config.get('advanced_constraints', {})
         multi_patch_layout = {}
@@ -118,16 +121,16 @@ class MultiPatchMapper:
         # --- Patch placement ---
         for i, patch in enumerate(surface_code_objects):
             if not hasattr(patch, 'qubit_layout') or not patch.qubit_layout:
-                print(f"[DEBUG] Patch {i} has empty or missing qubit_layout! Skipping placement for this patch.")
+                logger.debug("Patch %s has empty or missing qubit_layout! Skipping placement for this patch.", i)
                 continue
             # Debug: print types and values of x/y
             for q, pos in patch.qubit_layout.items():
                 x, y = pos['x'], pos['y']
-                print(f"[DEBUG] Patch {i} qubit {q}: x={x} ({type(x)}), y={y} ({type(y)})")
+                logger.debug("Patch %s qubit %s: x=%s (%s), y=%s (%s)", i, q, x, type(x), y, type(y))
                 if not isinstance(x, (int, float)):
-                    print(f"[WARN] Patch {i} qubit {q}: x is not numeric! Value: {x}")
+                    logger.warning("Patch %s qubit %s: x is not numeric! Value: %s", i, q, x)
                 if not isinstance(y, (int, float)):
-                    print(f"[WARN] Patch {i} qubit {q}: y is not numeric! Value: {y}")
+                    logger.warning("Patch %s qubit %s: y is not numeric! Value: %s", i, q, y)
             # Defensive conversion
             offset = i * (max(float(pos['x']) for pos in patch.qubit_layout.values()) + min_distance)
             patch_layout = {}
@@ -139,11 +142,11 @@ class MultiPatchMapper:
             try:
                 multi_patch_layout[i] = {'layout': patch_layout, 'shape': patch_shapes[i]}
             except Exception as e:
-                print(f"[ERROR] Exception during patch placement for patch {i}: {e}")
+                logger.error("Exception during patch placement for patch %s: %s", i, e)
                 import traceback; traceback.print_exc()
-                print(f"[DEBUG] Patch {i} state: {patch.__dict__}")
+                logger.debug("Patch %s state: %s", i, patch.__dict__)
                 continue
-        print(f"[DEBUG] MultiPatchMapper: multi_patch_layout has {len(multi_patch_layout)} patches. Keys: {list(multi_patch_layout.keys())}")
+        logger.debug("MultiPatchMapper: multi_patch_layout has %s patches. Keys: %s", len(multi_patch_layout), list(multi_patch_layout.keys()))
         inter_patch_connectivity = self._compute_inter_patch_connectivity(multi_patch_layout, min_distance)
         # --- RL agent mapping (all patches at once) ---
         from scode.rl_agent.environment import SurfaceCodeEnvironment
@@ -164,8 +167,8 @@ class MultiPatchMapper:
             env_config['surface_code']['patch_count'] = patch_count
             env_config['surface_code']['code_distance'] = code_distance
             env_config['surface_code']['layout_type'] = layout_type_patch
-            # Add debug print for RL environment config
-            print(f"[DEBUG] Creating RL env with patch_count={patch_count}, code_distance={code_distance}, layout_type={layout_type_patch}")
+            # Add debug log for RL environment config
+            logger.debug("Creating RL env with patch_count=%s, code_distance=%s, layout_type=%s", patch_count, code_distance, layout_type_patch)
             # --- Set patch_count and disable curriculum for inference ---
             if 'environment' in env_config:
                 env_config['environment']['patch_count'] = patch_count
@@ -186,15 +189,15 @@ class MultiPatchMapper:
                 surface_code_generator=surface_code_generator,
                 reward_engine=reward_engine
             )
-            print(f"[DEBUG] RL env.surface_code_config: {env.surface_code_config}")
+            logger.debug("RL env.surface_code_config: %s", env.surface_code_config)
             env.surface_code_config['patch_count'] = patch_count
             env.surface_code_config['code_distance'] = code_distance
             env.surface_code_config['layout_type'] = layout_type_patch
             obs, _ = env.reset()
             # Defensive assertion
             if env.patch_count != patch_count or len(env.current_mappings) != patch_count:
-                print(f"[ERROR] RL env patch_count mismatch after reset! env.patch_count={env.patch_count}, expected={patch_count}, len(current_mappings)={len(env.current_mappings)}")
-                print(f"[ERROR] Config passed to env: {env_config}")
+                logger.error("RL env patch_count mismatch after reset! env.patch_count=%s, expected=%s, len(current_mappings)=%s", env.patch_count, patch_count, len(env.current_mappings))
+                logger.error("Config passed to env: %s", env_config)
                 raise RuntimeError(f"RL environment patch_count mismatch: env.patch_count={env.patch_count}, expected={patch_count}")
             # --- Find the correct policy file for the multi-patch config ---
             provider = self.hardware_graph.get('provider_name', 'provider').lower()
@@ -212,8 +215,8 @@ class MultiPatchMapper:
                 artifact_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
                 policy_path = artifact_files[0]
                 if len(artifact_files) > 1:
-                    print(f"[WARNING] Multiple artifacts found for pattern {artifact_pattern}. Using most recent: {policy_path}")
-                print(f"[INFO] Loading RL policy: {policy_path}")
+                    logger.warning("Multiple artifacts found for pattern %s. Using most recent: %s", artifact_pattern, policy_path)
+                logger.info("Loading RL policy: %s", policy_path)
             else:
                 # Fallback: try to match the old pattern without stage/timestamp
                 fallback_pattern = f"{provider}_{dev_name}_{layout_type_patch}_d{code_distance}_patches{patch_count}_sb3_ppo_surface_code*.zip"
@@ -222,10 +225,10 @@ class MultiPatchMapper:
                 if fallback_files:
                     fallback_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
                     policy_path = fallback_files[0]
-                    print(f"[WARNING] No stage/timestamp artifact found, using fallback: {policy_path}")
-                    print(f"[INFO] Loading RL policy: {policy_path}")
+                    logger.warning("No stage/timestamp artifact found, using fallback: %s", policy_path)
+                    logger.info("Loading RL policy: %s", policy_path)
                 else:
-                    print(f"[ERROR] No trained RL agent found for code_distance={code_distance}, patch_count={patch_count}, layout_type={layout_type_patch}. Please train the agent for this config. Expected at: {search_pattern}")
+                    logger.error("No trained RL agent found for code_distance=%s, patch_count=%s, layout_type=%s. Expected at: %s", code_distance, patch_count, layout_type_patch, search_pattern)
                     return {
                         'multi_patch_layout': multi_patch_layout,
                         'inter_patch_connectivity': inter_patch_connectivity,
@@ -245,10 +248,10 @@ class MultiPatchMapper:
                 # Print only LER and reward concisely
                 ler = info.get('ler', info.get('logical_error_rate', None))
                 if (ler is not None) or (reward is not None):
-                    print(f"RL inference step {step_count}: reward={reward}, LER={ler}")
+                    logger.info("RL inference step %s: reward=%s, LER=%s", step_count, reward, ler)
             # Debug: print RL agent output mapping length and content
-            print(f"[DEBUG] RL agent env.current_mappings length: {len(getattr(env, 'current_mappings', []))}")
-            print(f"[DEBUG] RL agent env.current_mappings: {getattr(env, 'current_mappings', None)}")
+            logger.debug("RL agent env.current_mappings length: %s", len(getattr(env, 'current_mappings', [])))
+            logger.debug("RL agent env.current_mappings: %s", getattr(env, 'current_mappings', None))
             # Strict overlap check after RL mapping
             all_hw = []
             for mapping in getattr(env, 'current_mappings', []):
@@ -256,17 +259,17 @@ class MultiPatchMapper:
             if len(set(all_hw)) < len(all_hw):
                 raise RuntimeError("Illegal mapping: Physical qubit overlap detected across patches in RL mapping. Mapping halted.")
             if len(getattr(env, 'current_mappings', [])) != patch_count:
-                print(f"[ERROR] RL agent produced {len(getattr(env, 'current_mappings', []))} mappings, expected {patch_count}")
-                print(f"[ERROR] env config: {env_config}")
-                print(f"[ERROR] surface_code_objects: {surface_code_objects}")
-                print(f"[ERROR] mapping_constraints: {mapping_constraints}")
+                logger.error("RL agent produced %s mappings, expected %s", len(getattr(env, 'current_mappings', [])), patch_count)
+                logger.error("env config: %s", env_config)
+                logger.error("surface_code_objects: %s", surface_code_objects)
+                logger.error("mapping_constraints: %s", mapping_constraints)
                 raise RuntimeError("RL agent did not produce mapping for all patches")
             # Merge mapping for all patches, robust to missing mappings
             for i in range(patch_count):
                 if hasattr(env, 'current_mappings') and i < len(env.current_mappings):
                     logical_to_physical[i] = dict(env.current_mappings[i])
                 else:
-                    print(f"[WARNING] No mapping for logical qubit/patch {i} (only {len(getattr(env, 'current_mappings', []))} mappings found)")
+                    logger.warning("No mapping for logical qubit/patch %s (only %s mappings found)", i, len(getattr(env, 'current_mappings', [])))
                     logical_to_physical[i] = {}  # or handle as appropriate
             # Check for overlap across all patches
             all_hw = []
@@ -274,17 +277,17 @@ class MultiPatchMapper:
                 all_hw.extend(list(patch_map.values()))
             has_overlap = len(set(all_hw)) < len(all_hw)
             if has_overlap:
-                print("[WARNING] Overlap detected: the same physical qubit is mapped to multiple logical qubits across patches!")
+                logger.warning("Overlap detected: the same physical qubit is mapped to multiple logical qubits across patches!")
         except Exception as e:
-            print(f"[ERROR] Exception during RL agent mapping for all patches: {e}")
+            logger.error("Exception during RL agent mapping for all patches: %s", e)
             import traceback; traceback.print_exc()
         optimization_metrics = self._compute_optimization_metrics(
             multi_patch_layout, inter_patch_connectivity, logical_to_physical, advanced_constraints
         )
-        print("[DEBUG] MultiPatchMapper.map_patches (RL agent):")
-        print("  Number of logical qubits:", sum(len(patch.qubit_layout) for patch in surface_code_objects))
-        print("  Number of hardware qubits:", len(self.hardware_graph.get('qubit_connectivity', {})))
-        print("  logical_to_physical mapping:", pprint.pformat(logical_to_physical))
+        logger.debug("MultiPatchMapper.map_patches (RL agent):")
+        logger.debug("  Number of logical qubits: %s", sum(len(patch.qubit_layout) for patch in surface_code_objects))
+        logger.debug("  Number of hardware qubits: %s", len(self.hardware_graph.get('qubit_connectivity', {})))
+        logger.debug("  logical_to_physical mapping: %s", pprint.pformat(logical_to_physical))
         return {
             'multi_patch_layout': multi_patch_layout,
             'inter_patch_connectivity': inter_patch_connectivity,
@@ -328,23 +331,23 @@ class MultiPatchMapper:
                     logical_neighbors[lq] = []
                     
         # Debug logging
-        print(f"[DEBUG] _greedy_mapping: Found {len(all_logical)} logical qubits to map")
-        print(f"[DEBUG] _greedy_mapping: Available hardware qubits: {len(hw_nodes)}")
-        print(f"[DEBUG] _greedy_mapping: hw_nodes types: {[type(q) for q in hw_nodes]}")
-        print(f"[DEBUG] _greedy_mapping: all_logical types: {[type(q) for q in all_logical]}")
+        logger.debug("_greedy_mapping: Found %s logical qubits to map", len(all_logical))
+        logger.debug("_greedy_mapping: Available hardware qubits: %s", len(hw_nodes))
+        logger.debug("_greedy_mapping: hw_nodes types: %s", [type(q) for q in hw_nodes])
+        logger.debug("_greedy_mapping: all_logical types: %s", [type(q) for q in all_logical])
         # Check for non-numeric types in hw_nodes and all_logical
         for q in hw_nodes:
             if not isinstance(q, (int, float)):
-                print(f"[WARN] _greedy_mapping: hw_node is not numeric! Value: {q} ({type(q)})")
+                logger.warning("_greedy_mapping: hw_node is not numeric! Value: %s (%s)", q, type(q))
         for q in all_logical:
             if not isinstance(q, (int, float)):
-                print(f"[WARN] _greedy_mapping: logical qubit is not numeric! Value: {q} ({type(q)})")
+                logger.warning("_greedy_mapping: logical qubit is not numeric! Value: %s (%s)", q, type(q))
                     
         sorted_hw = sorted(hw_nodes, key=get_error)
         
         # Extra check to avoid empty mappings
         if not sorted_hw:
-            print("[ERROR] No hardware qubits available after applying constraints")
+            logger.error("No hardware qubits available after applying constraints")
             return {}
             
         if all_logical and sorted_hw:
@@ -380,12 +383,12 @@ class MultiPatchMapper:
                     used_hw.add(int(best_hw))
                 else:
                     # All hardware qubits are used, can't map more logical qubits
-                    print(f"[WARNING] Not enough hardware qubits to map all logical qubits. Mapped {len(logical_to_physical)}/{len(all_logical)}")
+                    logger.warning("Not enough hardware qubits to map all logical qubits. Mapped %s/%s", len(logical_to_physical), len(all_logical))
                     break
                     
         # Final mapping check
         if not logical_to_physical:
-            print("[ERROR] Failed to create any mappings in greedy algorithm")
+            logger.error("Failed to create any mappings in greedy algorithm")
             
         return logical_to_physical
 

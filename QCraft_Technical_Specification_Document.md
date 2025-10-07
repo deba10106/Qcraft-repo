@@ -2343,6 +2343,12 @@ def require_qiskit(func):
 - Clarified optional dependency handling in README and extras in `setup.py`.
 - Updated `execution_simulation/execution_simulator.py` to degrade gracefully when Qiskit is unavailable and to use `CredentialManager`.
 
+**Resolutions (Applied Oct 2, 2025):**
+- Encryption: Circuit export now uses AES-256-GCM when a password is provided. Each export uses a 16-byte random salt and 12-byte nonce. PBKDF2-HMAC-SHA256 (200k iterations) derives a 32-byte key. Payloads are prefixed with header `QCGCM1`. If no password is provided, Fernet remains for backward compatibility. See `privacy/circuit_encryptor.py`.
+- Public API: Single-patch mapping is available via `scode/api.py::SurfaceCodeAPI.get_single_patch_mapping()`, forwarding to the unified mapper and returning the GUI-compatible structure.
+- Optional Dependencies: Visualization and RL training are guarded with import-time checks (`matplotlib`, `stable_baselines3`). Clear guidance is shown to install extras (e.g., `pip install '.[full]'`).
+- Deprecations: Legacy module entrypoints under `scode/*/__main__.py` are deprecated in favor of the API and GUI, preventing accidental use in workflows.
+
 ---
 
 ## 11.6 SECURITY ISSUES

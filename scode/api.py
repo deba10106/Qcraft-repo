@@ -8,12 +8,22 @@ from code_switcher.code_switcher import CodeSwitcher
 from logging_results.logging_results_manager import LoggingResultsManager
 import uuid
 import math
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
 import networkx as nx
 from hardware_abstraction.device_abstraction import DeviceAbstraction
 from configuration_management.config_manager import ConfigManager
-from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv
+try:
+    from stable_baselines3 import PPO
+    from stable_baselines3.common.vec_env import SubprocVecEnv
+    SB3_AVAILABLE = True
+except ImportError:
+    PPO = None
+    SubprocVecEnv = None
+    SB3_AVAILABLE = False
 from scode.utils.decoder_interface import DecoderInterface
 
 # Device abstraction and config management
@@ -306,6 +316,8 @@ class SurfaceCodeAPI:
             surface_code: Original surface code object
             mapping_result: Result from map_to_hardware
         """
+        if not MATPLOTLIB_AVAILABLE:
+            raise ImportError("Matplotlib is required for visualization. Install with: pip install qcraft[full]")
         # Get the mapping and annotated graph
         mapping = mapping_result.get('transformed_layout', {})
         hw_graph = mapping_result.get('annotated_graph', nx.Graph())
@@ -372,6 +384,8 @@ class SurfaceCodeAPI:
             combined_layout: Combined layout information
             patches: Original patch objects
         """
+        if not MATPLOTLIB_AVAILABLE:
+            raise ImportError("Matplotlib is required for visualization. Install with: pip install qcraft[full]")
         qubit_layout = combined_layout.get('qubit_layout', {})
         patch_info = combined_layout.get('patch_info', [])
         
@@ -473,6 +487,26 @@ class SurfaceCodeAPI:
         )
         
         return env
+
+    def get_single_patch_mapping(self, code_distance: int, layout_type: str, mapping_constraints: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Public wrapper to compute a single logical patch mapping.
+
+        For compatibility with the TSD, this forwards to the heuristic layer's
+        SurfaceCode.get_single_patch_mapping(), ensuring the same return shape
+        as multi-patch mapping.
+
+        Args:
+            code_distance: desired code distance (odd integer), or None for auto-select
+            layout_type: code layout type (e.g., 'planar', 'rotated', 'color')
+            mapping_constraints: optional constraints dict
+
+        Returns:
+            Mapping dictionary compatible with GUI overlays.
+        """
+        sc = SurfaceCode(config_overrides=self.config, device_overrides=self.hardware_info)
+        constraints = mapping_constraints or {}
+        return sc.get_single_patch_mapping(code_distance, layout_type, constraints)
 
     # --- Device, Layout, and Agent Management ---
     def list_available_devices(self) -> List[str]:
@@ -624,6 +658,8 @@ class SurfaceCodeAPI:
         return os.path.abspath(os.path.join(output_dir, 'training_artifacts'))
 
     def train_surface_code_agent(self, provider: str, device: str, layout_type: str, code_distance: int, config_overrides: Optional[dict] = None, log_callback=None, run_id=None) -> dict:
+        if not SB3_AVAILABLE:
+            raise ImportError("stable-baselines3 is required for training. Install with: pip install qcraft[full]")
         try:
             self.logger.log_event('train_surface_code_agent_called', {'provider': provider, 'device': device, 'layout': layout_type, 'code_distance': code_distance}, level='DEBUG')
         except Exception:

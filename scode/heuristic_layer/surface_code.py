@@ -5,6 +5,9 @@ from scode.heuristic_layer.heuristic_initialization_layer import HeuristicInitia
 from scode.multi_patch_mapper.multi_patch_mapper import MultiPatchMapper
 from scode.utils.decoder_interface import DecoderInterface
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 def deep_merge(base: dict, override: dict) -> dict:
     if not override:
@@ -52,14 +55,14 @@ class SurfaceCode:
         if len(patch_shapes) < num_patches:
             patch_shapes = patch_shapes + [patch_shapes[-1]] * (num_patches - len(patch_shapes))
         self.current_codes = [self.h_layer.generate_surface_code(code_distance, layout_type) for _ in range(num_patches)]
-        # Debug: print size and content of each patch's qubit_layout
+        # Debug: log size and content of each patch's qubit_layout
         for idx, code in enumerate(self.current_codes):
             if not hasattr(code, 'qubit_layout'):
-                print(f"[DEBUG] Patch {idx} for d={code_distance} has no qubit_layout attribute!")
+                logger.debug("Patch %s for d=%s has no qubit_layout attribute!", idx, code_distance)
             elif not code.qubit_layout:
-                print(f"[DEBUG] Patch {idx} for d={code_distance} has EMPTY qubit_layout!")
+                logger.debug("Patch %s for d=%s has EMPTY qubit_layout!", idx, code_distance)
             else:
-                print(f"[DEBUG] Patch {idx} for d={code_distance} qubit_layout size: {len(code.qubit_layout)}")
+                logger.debug("Patch %s for d=%s qubit_layout size: %s", idx, code_distance, len(code.qubit_layout))
         # Robustness: check for empty or invalid layouts
         for idx, code in enumerate(self.current_codes):
             if not hasattr(code, 'qubit_layout') or not code.qubit_layout:
@@ -106,10 +109,10 @@ class SurfaceCode:
             best_mapping = None
             for d in range(min_d, max_d+1, 2):  # Only odd distances
                 try:
-                    print(f"[DEBUG] Trying code distance {d} for {num_patches} patches...")
+                    logger.debug("Trying code distance %s for %s patches...", d, num_patches)
                     codes = self.get_codes(d, layout_type, num_patches)
                     if any(not hasattr(code, 'qubit_layout') or not code.qubit_layout for code in codes):
-                        print(f"[DEBUG] At least one patch for d={d} is empty or invalid!")
+                        logger.debug("At least one patch for d=%s is empty or invalid!", d)
                         raise ValueError(f"Generated patch for code distance {d} is empty or invalid.")
                     mapping = self.mapper.map_patches(codes, mapping_constraints)
                     # Estimate logical error rate (LER) for this mapping using DecoderInterface
@@ -119,19 +122,19 @@ class SurfaceCode:
                         noise_model = self.device_config.get('noise_model', {'p': 0.001})
                         ler = DecoderInterface.estimate_logical_error_rate(layout, mapping, noise_model)
                     except Exception as e:
-                        print(f"[LER ERROR] {e}")
+                        logger.error("LER estimation error: %s", e)
                         ler = None
                     if ler is not None and ler < best_ler:
                         best_ler = ler
                         best_d = d
                         best_mapping = mapping
                 except Exception as e:
-                    print(f"[WARN] Skipping code distance {d}: {e}")
+                    logger.warning("Skipping code distance %s: %s", d, e)
                     continue  # Skip invalid d
             if best_mapping is None:
-                print(f"[DEBUG] No valid code distance found for {num_patches} patches on this device after trying all distances.")
+                logger.debug("No valid code distance found for %s patches on this device after trying all distances.", num_patches)
                 raise ValueError(f"No valid code distance found for {num_patches} patches on this device.")
-            print(f"[INFO] Selected code type: {layout_type}, code distance: {best_d}, LER: {best_ler:.3e}")
+            logger.info("Selected code type: %s, code distance: %s, LER: %.3e", layout_type, best_d, best_ler)
             best_mapping['selected_code_distance'] = best_d
             best_mapping['selected_code_type'] = layout_type
             best_mapping['selected_ler'] = best_ler
@@ -143,41 +146,40 @@ class SurfaceCode:
             max_d = int(math.sqrt(((n/num_patches)+1)/2))
             required_qubits = num_patches*(2*code_distance*code_distance-1)
             if required_qubits > n:
-                print(f"[DEBUG] Not enough physical qubits for {num_patches} planar/rotated patches of distance {code_distance}. Required: {required_qubits}, available: {n}")
+                logger.debug("Not enough physical qubits for %s planar/rotated patches of distance %s. Required: %s, available: %s", num_patches, code_distance, required_qubits, n)
                 raise ValueError(f"Not enough physical qubits for {num_patches} planar/rotated patches of distance {code_distance}. Max allowed distance: {max_d}, available qubits: {n}")
         elif layout_type == 'color':
             max_d = int(math.sqrt(((2*n/num_patches)-1)/3))
             required_qubits = num_patches*((3*code_distance*code_distance+1)//2)
             if required_qubits > n:
-                print(f"[DEBUG] Not enough physical qubits for {num_patches} color code patches of distance {code_distance}. Required: {required_qubits}, available: {n}")
                 raise ValueError(f"Not enough physical qubits for {num_patches} color code patches of distance {code_distance}. Max allowed distance: {max_d}, available qubits: {n}")
         else:
             max_d = int(math.sqrt(n/num_patches))
             required_qubits = num_patches*code_distance*code_distance
             if required_qubits > n:
-                print(f"[DEBUG] Not enough physical qubits for {num_patches} patches of distance {code_distance}. Required: {required_qubits}, available: {n}")
+                logger.debug("Not enough physical qubits for %s patches of distance %s. Required: %s, available: %s", num_patches, code_distance, required_qubits, n)
                 raise ValueError(f"Not enough physical qubits for {num_patches} patches of distance {code_distance}. Max allowed distance: {max_d}, available qubits: {n}")
         if code_distance > max_d:
-            print(f"[DEBUG] Code distance {code_distance} too large for {num_patches} patches on this device. Max allowed: {max_d}")
+            logger.debug("Code distance %s too large for %s patches on this device. Max allowed: %s", code_distance, num_patches, max_d)
             raise ValueError(f"Code distance {code_distance} too large for {num_patches} patches on this device. Max allowed: {max_d}")
         codes = self.get_codes(code_distance, layout_type, num_patches)
         if any(not hasattr(code, 'qubit_layout') or not code.qubit_layout for code in codes):
-            print(f"[DEBUG] At least one patch for d={code_distance} is empty or invalid!")
+            logger.debug("At least one patch for d=%s is empty or invalid!", code_distance)
             raise ValueError(f"Generated patch for code distance {code_distance} is empty or invalid.")
         mapping = self.mapper.map_patches(codes, mapping_constraints)
         self.current_mapping = mapping
-        print(f"[DEBUG] get_multi_patch_mapping: mapping_constraints={mapping_constraints}")
-        print(f"[DEBUG] get_multi_patch_mapping: num_patches={num_patches}")
+        logger.debug("get_multi_patch_mapping: mapping_constraints=%s", mapping_constraints)
+        logger.debug("get_multi_patch_mapping: num_patches=%s", num_patches)
         patch_shapes = mapping_constraints.get('patch_shapes', None)
         if not patch_shapes or len(patch_shapes) < num_patches:
             default_shape = 'rectangular'
             patch_shapes = (patch_shapes or []) + [default_shape] * (num_patches - len(patch_shapes or []))
         if len(patch_shapes) != num_patches:
-            print(f"[WARNING] get_multi_patch_mapping: patch_shapes length {len(patch_shapes)} does not match num_patches {num_patches}")
-            print(f"[WARNING] patch_shapes: {patch_shapes}")
+            logger.warning("get_multi_patch_mapping: patch_shapes length %s does not match num_patches %s", len(patch_shapes), num_patches)
+            logger.warning("patch_shapes: %s", patch_shapes)
             patch_shapes = patch_shapes[:num_patches]
         mapping_constraints['patch_shapes'] = patch_shapes
-        print(f"[DEBUG] get_multi_patch_mapping: final patch_shapes={patch_shapes}")
+        logger.debug("get_multi_patch_mapping: final patch_shapes=%s", patch_shapes)
         return mapping 
 
     def get_single_patch_mapping(self, code_distance: int, layout_type: str, mapping_constraints: Optional[Dict[str, Any]] = None):

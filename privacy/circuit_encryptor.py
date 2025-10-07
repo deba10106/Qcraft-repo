@@ -10,8 +10,9 @@ Date: October 1, 2025
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import base64
 import json
 import os
@@ -40,6 +41,8 @@ class CircuitEncryptor:
         >>> decrypted = encryptor.decrypt_circuit(encrypted)
     """
     
+    GCM_HEADER = b'QCGCM1'
+
     def __init__(self, password: Optional[str] = None, key: Optional[bytes] = None):
         """
         Initialize circuit encryptor.
@@ -51,6 +54,10 @@ class CircuitEncryptor:
         Raises:
             ValueError: If neither password nor key is provided
         """
+        # Store password to derive AES-GCM keys deterministically per export
+        self._password = password
+        self._use_gcm = password is not None
+
         if key is not None:
             self.key = key
         elif password is not None:
@@ -78,7 +85,7 @@ class CircuitEncryptor:
             # Use fixed salt for reproducibility (should be per-user in production)
             salt = b'qcraft_salt_v1_change_in_production'
         
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=salt,
@@ -87,6 +94,19 @@ class CircuitEncryptor:
         )
         key_material = kdf.derive(password.encode())
         return base64.urlsafe_b64encode(key_material)
+
+    def _derive_raw_key_from_password(self, password: str, salt: bytes, iterations: int = 200000) -> bytes:
+        """
+        Derive a raw 32-byte key for AES-GCM from a password and salt.
+        """
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=iterations,
+            backend=default_backend()
+        )
+        return kdf.derive(password.encode())
     
     def encrypt_circuit(self, circuit_data: Union[Dict[str, Any], str]) -> bytes:
         """
@@ -108,13 +128,23 @@ class CircuitEncryptor:
                 circuit_json = json.dumps(circuit_data, indent=2)
             else:
                 circuit_json = circuit_data
-            
-            # Encrypt
+
+            # Prefer AES-GCM when a password is provided
+            if self._use_gcm and self._password:
+                salt = os.urandom(16)
+                nonce = os.urandom(12)  # 96-bit nonce recommended for GCM
+                aes_key = self._derive_raw_key_from_password(self._password, salt, iterations=200000)
+                aesgcm = AESGCM(aes_key)
+                ciphertext = aesgcm.encrypt(nonce, circuit_json.encode('utf-8'), None)
+                payload = self.GCM_HEADER + salt + nonce + ciphertext
+                logger.info("Circuit encrypted successfully with AES-GCM (%s bytes)", len(payload))
+                return payload
+
+            # Fallback to Fernet
             encrypted_data = self.cipher.encrypt(circuit_json.encode('utf-8'))
-            
-            logger.info(f"Circuit encrypted successfully ({len(encrypted_data)} bytes)")
+            logger.info("Circuit encrypted successfully with Fernet (%s bytes)", len(encrypted_data))
             return encrypted_data
-            
+
         except Exception as e:
             logger.error(f"Circuit encryption failed: {e}")
             raise
@@ -133,16 +163,28 @@ class CircuitEncryptor:
             Exception: If decryption fails (wrong key, corrupted data)
         """
         try:
-            # Decrypt
-            decrypted_bytes = self.cipher.decrypt(encrypted_data)
-            circuit_json = decrypted_bytes.decode('utf-8')
-            
+            # AES-GCM detection and decryption
+            if isinstance(encrypted_data, (bytes, bytearray)) and encrypted_data.startswith(self.GCM_HEADER):
+                if not self._password:
+                    raise ValueError("Password required to decrypt AES-GCM payload.")
+                header_len = len(self.GCM_HEADER)
+                salt = encrypted_data[header_len:header_len+16]
+                nonce = encrypted_data[header_len+16:header_len+16+12]
+                ciphertext = encrypted_data[header_len+28:]
+                aes_key = self._derive_raw_key_from_password(self._password, salt, iterations=200000)
+                aesgcm = AESGCM(aes_key)
+                decrypted_bytes = aesgcm.decrypt(nonce, ciphertext, None)
+                circuit_json = decrypted_bytes.decode('utf-8')
+            else:
+                # Fernet fallback
+                decrypted_bytes = self.cipher.decrypt(encrypted_data)
+                circuit_json = decrypted_bytes.decode('utf-8')
+
             # Parse JSON
             circuit_data = json.loads(circuit_json)
-            
             logger.info("Circuit decrypted successfully")
             return circuit_data
-            
+
         except Exception as e:
             logger.error(f"Circuit decryption failed: {e}")
             raise
