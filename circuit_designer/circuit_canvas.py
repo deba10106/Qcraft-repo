@@ -1,6 +1,6 @@
 import os
 import importlib.resources
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGraphicsView, QGraphicsScene, QPushButton, QFrame, QGraphicsRectItem, QMenu
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGraphicsView, QGraphicsScene, QPushButton, QFrame, QGraphicsRectItem, QMenu, QInputDialog, QMessageBox
 from PySide6.QtCore import Qt, QPointF, QSize
 from PySide6.QtGui import QPainter, QPen, QColor, QFont, QKeyEvent, QIcon, QPixmap
 import yaml
@@ -234,6 +234,30 @@ class CircuitCanvas(QWidget):
         self.view.scale(1/1.15, 1/1.15)
     def _reset_view(self):
         self.view.resetTransform()
+    def _prompt_select_clbit(self, default_index: int = 0) -> int:
+        """Prompt the user to select a classical bit index. Returns the selected clbit or -1 if cancelled."""
+        clbits = self.editor.circuit.get('clbits', [])
+        # If there are no classical bits, offer to create one
+        if not clbits:
+            res = QMessageBox.question(self, "No classical bits", "No classical bits exist. Create one now?", QMessageBox.Yes | QMessageBox.No)
+            if res == QMessageBox.Yes:
+                self.editor.add_clbit()
+                clbits = self.editor.circuit.get('clbits', [])
+                self._draw_circuit()
+            else:
+                return -1
+        items = [f"c{c}" for c in clbits]
+        # Clamp default index
+        if default_index < 0 or default_index >= len(items):
+            default_index = 0
+        ok, ok_pressed = QInputDialog.getItem(self, "Select classical bit", "Target classical bit:", items, current=default_index, editable=False)
+        if not ok_pressed:
+            return -1
+        try:
+            # item is like 'c3' -> 3
+            return int(str(ok).lstrip('c'))
+        except Exception:
+            return -1
     def handle_drop_event(self, event, view):
         mime_data = event.mimeData()
         gate_name = None
@@ -263,12 +287,15 @@ class CircuitCanvas(QWidget):
         t = max(0, int(round((x - 100) / grid_size)))
         try:
             if gate_name == 'MEASURE':
-                # Prompt user for classical bit selection (simple: use dialog or default to same index)
+                # Determine nearest qubit and propose matching classical bit index if available
                 q_idx = qubit_distances[0][0]
                 qubit = qubits[q_idx]
-                clbit = clbits[q_idx] if q_idx < len(clbits) else (clbits[0] if clbits else 0)
-                # TODO: Replace with dialog for user selection if needed
-                self.editor.add_gate(gate_name, qubit, t, clbits=[clbit])
+                default_cidx = q_idx if q_idx < len(clbits) else 0
+                selected_clbit = self._prompt_select_clbit(default_cidx)
+                if selected_clbit == -1:
+                    event.ignore()
+                    return
+                self.editor.add_gate(gate_name, qubit, t, clbits=[selected_clbit])
                 self._draw_circuit()
                 event.acceptProposedAction()
             elif gate_arity == 1:

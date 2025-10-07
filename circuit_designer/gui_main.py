@@ -1284,7 +1284,7 @@ class CircuitDesignerGUI(QMainWindow):
         dlg.exec()
 
     def open_training_dialog(self):
-        dlg = TrainingDialog(self, bridge=self.workflow_bridge)
+        dlg = TrainingDialog(self, bridge=self.workflow_bridge, get_circuit_func=self.editor.get_circuit)
         dlg.setWindowTitle("Train Module")
         dlg.exec()
 

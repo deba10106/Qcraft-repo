@@ -20,6 +20,7 @@ from configuration_management.config_manager import ConfigManager
 import importlib.resources
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from scode.utils.decoder_interface import DecoderInterface
+from utils.credential_manager import CredentialManager
 
 # Ensure config registry is loaded before any config access
 ConfigManager.load_registry()
@@ -215,6 +216,9 @@ class QuantumWorkflowBridge:
                     use_rl_agent=True,
                     rl_policy_path=None
                 )
+                # Ensure provider/device strings propagate for downstream UIs
+                mapping['device'] = device or (device_info.get('device_name') if device_info else None) or 'unknown'
+                mapping['provider'] = provider or (device_info.get('provider_name') if device_info else None) or 'unknown'
                 # Attach any discovered strategy/patches/capabilities from orchestrator if available later in the pipeline
                 return {
                     'mapping_info': mapping,
@@ -334,7 +338,7 @@ class QuantumWorkflowBridge:
         return self.surface_code_api.get_training_status(agent_path)
 
     # --- Optimizer Training (Advanced RL/ML Implementation) ---
-    def train_optimizer_agent(self, circuit: dict, device_info: dict, config_overrides: dict = None, log_callback=None, run_id=None) -> str:
+    def train_optimizer_agent(self, circuit: dict, device_info: dict, config_overrides: dict = None, log_callback=None, run_id=None, circuits: Optional[List[dict]] = None, procedural: Optional[dict] = None) -> str:
         """
         Train an RL/ML-based circuit optimizer agent. Returns the path to the trained agent artifact.
         Uses RLBasedOptimizer (stable-baselines3 PPO) and logs progress/results via LoggingResultsManager.
@@ -375,7 +379,9 @@ class QuantumWorkflowBridge:
                 action_space_size=rl_env_conf.get('action_space_size', 8),
                 reward_weights=reward_weights,
                 normalize_reward=normalize_reward,
-                curriculum=curriculum_cfg
+                curriculum=curriculum_cfg,
+                circuits=circuits,
+                procedural=procedural
             )
             env = Monitor(env)
             # Extend here: e.g., VecNormalize, TimeLimit, custom wrappers
@@ -494,19 +500,26 @@ class QuantumWorkflowBridge:
 
     # --- API Key Management ---
     def get_api_key(self, provider_name: str) -> str:
-        return ConfigManager.get_api_key(provider_name)
+        """Retrieve provider API key securely via CredentialManager."""
+        service = 'ibm_quantum' if 'ibm' in provider_name.lower() else (
+            'ionq' if 'ionq' in provider_name.lower() else (
+            'rigetti' if 'rigetti' in provider_name.lower() else provider_name.lower()))
+        try:
+            cred_mgr = CredentialManager()
+            return cred_mgr.get_credential(service)
+        except Exception:
+            # Fallback to any legacy config-based retrieval
+            return ConfigManager.get_api_key(provider_name)
 
     def set_api_key(self, provider_name: str, api_key: str) -> None:
-        """
-        Store the API key for the given provider (dummy implementation).
-        """
-        # In a real implementation, this would securely store the API key
-        # for use with cloud providers. RL training logic is now in train_multi_patch_rl_agent.
-        self.api_keys = getattr(self, 'api_keys', {})
-        self.api_keys[provider_name] = api_key
-        # Optionally log or emit an event
+        """Securely store the provider API key via CredentialManager."""
+        service = 'ibm_quantum' if 'ibm' in provider_name.lower() else (
+            'ionq' if 'ionq' in provider_name.lower() else (
+            'rigetti' if 'rigetti' in provider_name.lower() else provider_name.lower()))
+        cred_mgr = CredentialManager()
+        cred_mgr.store_credential(service, api_key)
         if hasattr(self, 'logger'):
-            self.logger.log_event('api_key_set', {'provider': provider_name}, level='INFO')
+            self.logger.log_event('api_key_set_secure', {'provider': provider_name, 'service': service}, level='INFO')
 
     def train_multi_patch_rl_agent(self, config_path=None, log_callback=None, config_overrides=None):
         """

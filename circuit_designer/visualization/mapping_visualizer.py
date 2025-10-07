@@ -360,12 +360,17 @@ class MappingVisualizer:
                     
                     if closest_pair:
                         q1, q2 = closest_pair
+                        # Prefer provided distance; otherwise compute Euclidean distance
+                        provided_d = connection_info.get('distance')
+                        fallback_d = round(min_dist, 2) if min_dist != float('inf') else None
+                        d_label = provided_d if provided_d is not None else fallback_d
+                        label_text = 'Inter-patch link' + (f' (d={d_label})' if d_label is not None else '')
                         ax.plot([pos[q1][0], pos[q2][0]], 
                                [pos[q1][1], pos[q2][1]],
                                color='red', alpha=0.6,
                                linewidth=2, linestyle='-.',
                                zorder=2,
-                               label=f'Inter-patch link (d={connection_info.get("distance", "N/A")})')
+                               label=label_text)
                         logger.debug("Drew connection between patches %s and %s", patch1, patch2)
         
         # Add legend

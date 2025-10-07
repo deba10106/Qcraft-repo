@@ -1,10 +1,11 @@
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QGroupBox, QFormLayout, QComboBox, QDoubleSpinBox, QSpinBox, QPushButton, QLabel, QProgressBar, QTextEdit, QMessageBox
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QGroupBox, QFormLayout, QComboBox, QDoubleSpinBox, QSpinBox, QPushButton, QLabel, QProgressBar, QTextEdit, QMessageBox, QFileDialog, QLineEdit
 from PySide6.QtCore import QTimer, Signal
 from .workflow_bridge import QuantumWorkflowBridge
 from hardware_abstraction.device_abstraction import DeviceAbstraction
 import os
 import json
 import math
+import yaml
 from scode.api import SurfaceCodeAPI
 
 class TrainingDialog(QDialog):
@@ -12,9 +13,10 @@ class TrainingDialog(QDialog):
     error_signal = Signal(str)
     process_exit_signal = Signal(int)
 
-    def __init__(self, parent=None, bridge=None):
+    def __init__(self, parent=None, bridge=None, get_circuit_func=None):
         super().__init__(parent)
         self.bridge = bridge or QuantumWorkflowBridge()
+        self.get_circuit_func = get_circuit_func
         self.selected_module = 'surface_code'
         self.training_in_progress = False
         self.current_episode = 0
@@ -31,6 +33,11 @@ class TrainingDialog(QDialog):
         self.log_signal.connect(self._handle_log_update)
         self.error_signal.connect(self._handle_error)
         self.process_exit_signal.connect(self._handle_process_exit)
+        # Load persisted training profile
+        try:
+            self._load_training_profile()
+        except Exception:
+            pass
 
     def _setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -77,6 +84,9 @@ class TrainingDialog(QDialog):
             hw = json.load(f)
         self.provider_name = hw.get('provider_name', 'ibm')
         self.device_name = hw.get('device_name', 'ibm_hummingbird')
+        # Training source configuration
+        self._setup_training_source_ui(config_layout)
+        # Module-specific dynamic config
         self.dynamic_config_area = QVBoxLayout()
         config_layout.addLayout(self.dynamic_config_area)
         self._populate_dynamic_config_fields('surface_code')
@@ -99,6 +109,143 @@ class TrainingDialog(QDialog):
         elif module == 'optimizer':
             self._add_optimizer_fields()
 
+    # --- Training source UI ---
+    def _setup_training_source_ui(self, parent_layout: QVBoxLayout):
+        self.training_source_group = QGroupBox("Training Source")
+        grp_layout = QVBoxLayout(self.training_source_group)
+        self.training_source_combo = QComboBox()
+        self.training_source_combo.addItems(["Current Circuit", "Dataset Files", "Procedural Generation"])
+        self.training_source_combo.currentIndexChanged.connect(self._on_training_source_changed)
+        grp_layout.addWidget(self.training_source_combo)
+        # Dynamic area for source-specific controls
+        self.training_source_area = QVBoxLayout()
+        grp_layout.addLayout(self.training_source_area)
+        parent_layout.addWidget(self.training_source_group)
+        # Initialize state
+        self.selected_training_source = 'Current Circuit'
+        self.dataset_file_paths = []
+        self.dataset_circuits = []
+        self._refresh_training_source_fields()
+
+    def _on_training_source_changed(self, idx):
+        options = ["Current Circuit", "Dataset Files", "Procedural Generation"]
+        self.selected_training_source = options[idx]
+        self._refresh_training_source_fields()
+
+    def _refresh_training_source_fields(self):
+        # Clear existing widgets
+        for i in reversed(range(self.training_source_area.count())):
+            w = self.training_source_area.itemAt(i).widget()
+            if w:
+                w.setParent(None)
+        if self.selected_training_source == 'Dataset Files':
+            btn = QPushButton("Select circuit file(s)...")
+            btn.clicked.connect(self._select_dataset_files)
+            self.training_source_area.addWidget(btn)
+            self.dataset_summary_label = QLabel("No files selected")
+            self.training_source_area.addWidget(self.dataset_summary_label)
+        elif self.selected_training_source == 'Procedural Generation':
+            form = QFormLayout()
+            self.proc_qubits_min = QSpinBox(); self.proc_qubits_min.setRange(1, 1000); self.proc_qubits_min.setValue(2)
+            self.proc_qubits_max = QSpinBox(); self.proc_qubits_max.setRange(1, 1000); self.proc_qubits_max.setValue(6)
+            self.proc_gates_min = QSpinBox(); self.proc_gates_min.setRange(1, 100000); self.proc_gates_min.setValue(10)
+            self.proc_gates_max = QSpinBox(); self.proc_gates_max.setRange(1, 100000); self.proc_gates_max.setValue(50)
+            self.proc_gate_set = QLineEdit(); self.proc_gate_set.setPlaceholderText("Comma-separated gate names (optional)")
+            form.addRow("Qubits min", self.proc_qubits_min)
+            form.addRow("Qubits max", self.proc_qubits_max)
+            form.addRow("Gates min", self.proc_gates_min)
+            form.addRow("Gates max", self.proc_gates_max)
+            form.addRow("Gate set", self.proc_gate_set)
+            grp = QGroupBox("Procedural Config"); grp.setLayout(form)
+            self.training_source_area.addWidget(grp)
+            # Preview button
+            preview_btn = QPushButton("Preview generated circuits")
+            preview_btn.clicked.connect(self._preview_procedural_samples)
+            self.training_source_area.addWidget(preview_btn)
+
+    def _select_dataset_files(self):
+        paths, _ = QFileDialog.getOpenFileNames(self, "Select circuit file(s)", "", "Circuit files (*.json *.yaml *.yml);;All files (*.*)")
+        if not paths:
+            return
+        self.dataset_file_paths = paths
+        # Load circuits now for quick validation
+        self.dataset_circuits = self._load_circuits_from_paths(paths)
+        count = len(self.dataset_circuits)
+        avg_qubits = sum(len(c.get('qubits', [])) for c in self.dataset_circuits) / count if count else 0
+        avg_gates = sum(len(c.get('gates', [])) for c in self.dataset_circuits) / count if count else 0
+        self.dataset_summary_label.setText(f"Selected {len(paths)} file(s), loaded {count} circuit(s). Avg qubits: {avg_qubits:.1f}, Avg gates: {avg_gates:.1f}")
+        # Persist profile
+        self._save_training_profile()
+
+    def _load_circuits_from_paths(self, paths: list) -> list:
+        circuits = []
+        for p in paths:
+            try:
+                if p.lower().endswith('.json'):
+                    with open(p, 'r') as f:
+                        data = json.load(f)
+                elif p.lower().endswith(('.yaml', '.yml')):
+                    with open(p, 'r') as f:
+                        data = yaml.safe_load(f)
+                else:
+                    continue
+                if isinstance(data, dict) and 'qubits' in data:
+                    circuits.append(data)
+                elif isinstance(data, list):
+                    circuits.extend([d for d in data if isinstance(d, dict) and 'qubits' in d])
+            except Exception as e:
+                # Continue on individual file errors
+                print(f"[WARN] Failed to load circuit from {p}: {e}")
+        return circuits
+
+    def _get_procedural_config(self) -> dict:
+        gate_set = [g.strip() for g in self.proc_gate_set.text().split(',')] if hasattr(self, 'proc_gate_set') and self.proc_gate_set.text().strip() else None
+        return {
+            'qubits': {'min': self.proc_qubits_min.value(), 'max': self.proc_qubits_max.value()},
+            'gates': {'min': self.proc_gates_min.value(), 'max': self.proc_gates_max.value()},
+            'gate_set': gate_set
+        }
+
+    def _preview_procedural_samples(self):
+        try:
+            cfg = self._get_procedural_config()
+            # Use device info for native gate set fallback
+            provider, device_name = self._get_active_provider_device()
+            device_info = DeviceAbstraction.get_device_info(provider, device_name)
+            samples = [self._generate_random_circuit(cfg, device_info) for _ in range(3)]
+            msg = []
+            for i, c in enumerate(samples):
+                msg.append(f"Sample {i+1}: qubits={len(c.get('qubits', []))}, gates={len(c.get('gates', []))}")
+            QMessageBox.information(self, "Procedural Preview", "\n".join(msg))
+        except Exception as e:
+            QMessageBox.warning(self, "Preview Error", f"Failed to generate preview: {e}")
+
+    def _generate_random_circuit(self, cfg: dict, device_info: dict) -> dict:
+        import random
+        qmin = int((cfg.get('qubits') or {}).get('min', 2))
+        qmax = int((cfg.get('qubits') or {}).get('max', max(2, device_info.get('max_qubits', 5))))
+        gmin = int((cfg.get('gates') or {}).get('min', 10))
+        gmax = int((cfg.get('gates') or {}).get('max', 50))
+        n_qubits = max(1, random.randint(min(qmin, qmax), max(qmin, qmax)))
+        n_gates = max(1, random.randint(min(gmin, gmax), max(gmin, gmax)))
+        gate_set = cfg.get('gate_set') or list(device_info.get('native_gates', ['H','X','Z','CNOT','S','T','CZ']))
+        single_gates = [g for g in gate_set if str(g).upper() not in {'CNOT','CX','CZ','SWAP','CCX'}]
+        twoq_gates = [g for g in gate_set if str(g).upper() in {'CNOT','CX','CZ','SWAP'}]
+        circuit = {'qubits': list(range(n_qubits)), 'clbits': [], 'gates': []}
+        t = 0
+        for _ in range(n_gates):
+            use_twoq = twoq_gates and n_qubits >= 2 and random.random() < 0.35
+            if use_twoq:
+                gname = random.choice(twoq_gates)
+                q1, q2 = random.sample(range(n_qubits), 2)
+                circuit['gates'].append({'id': f'g{len(circuit["gates"])}_{gname}_{q1}_{q2}_{t}', 'name': gname, 'qubits': [q1, q2], 'time': t, 'params': []})
+            else:
+                gname = random.choice(single_gates or ['H'])
+                q = random.randrange(n_qubits)
+                circuit['gates'].append({'id': f'g{len(circuit["gates"])}_{gname}_{q}_{t}', 'name': gname, 'qubits': [q], 'time': t, 'params': []})
+            t += 1
+        return circuit
+
     def _add_surface_code_fields(self):
         # Remove layout type, code distance, learning rate, and episodes fields from the UI
         pass
@@ -120,6 +267,16 @@ class TrainingDialog(QDialog):
         self.optimizer_episodes_spin.setValue(1000)
         self.dynamic_config_area.addWidget(self.optimizer_episodes_label)
         self.dynamic_config_area.addWidget(self.optimizer_episodes_spin)
+        # Vec controls
+        self.vec_strategy_label = QLabel("Vectorization:")
+        self.vec_strategy_combo = QComboBox(); self.vec_strategy_combo.addItems(["subproc", "dummy", "none"])
+        self.n_envs_label = QLabel("Parallel Envs:")
+        self.n_envs_spin = QSpinBox(); self.n_envs_spin.setRange(1, 64); self.n_envs_spin.setValue(4)
+        vec_form = QFormLayout()
+        vec_form.addRow(self.vec_strategy_label, self.vec_strategy_combo)
+        vec_form.addRow(self.n_envs_label, self.n_envs_spin)
+        vec_group = QGroupBox("Parallelism"); vec_group.setLayout(vec_form)
+        self.dynamic_config_area.addWidget(vec_group)
 
     def _setup_training_tab(self):
         training_tab = QWidget()
@@ -179,6 +336,16 @@ class TrainingDialog(QDialog):
         provider, device_name = self._get_active_provider_device()
         device_info = DeviceAbstraction.get_device_info(provider, device_name)
         self.agent_config['device'] = device_info
+        # Persist RL vec config
+        if not isinstance(self.agent_config, dict):
+            self.agent_config = {}
+        self.agent_config.setdefault('rl_config', {})
+        if hasattr(self, 'vec_strategy_combo'):
+            self.agent_config['rl_config']['vec_strategy'] = self.vec_strategy_combo.currentText()
+        if hasattr(self, 'n_envs_spin'):
+            self.agent_config['rl_config']['n_envs'] = int(self.n_envs_spin.value())
+        if hasattr(self, 'optimizer_episodes_spin'):
+            self.agent_config['rl_config']['num_episodes'] = int(self.optimizer_episodes_spin.value())
         self.bridge.set_agent_config(self.agent_config)
 
         def gui_log_callback(message, progress):
@@ -195,17 +362,52 @@ class TrainingDialog(QDialog):
         # Actually start training here
         config_path = None
         if self.selected_module == 'optimizer':
-            # Dummy circuit for optimizer training (should be replaced with actual circuit if available)
-            dummy_circuit = {'gates': [], 'qubits': []}
+            # Determine training source
+            circuits = None
+            procedural = None
+            if self.selected_training_source == 'Dataset Files':
+                if not self.dataset_circuits:
+                    QMessageBox.warning(self, "No Circuits", "No circuits loaded from selected files. Please select valid JSON/YAML circuit files.")
+                    self.training_in_progress = False
+                    self.start_button.setEnabled(True)
+                    self.stop_button.setEnabled(False)
+                    return
+                circuits = self.dataset_circuits
+                # Use a minimal single-circuit placeholder to satisfy the API
+                circuit = circuits[0]
+            elif self.selected_training_source == 'Procedural Generation':
+                procedural = self._get_procedural_config()
+                # Minimal placeholder circuit; env will procedurally sample on reset
+                circuit = {'gates': [], 'qubits': list(range(procedural['qubits']['min']))}
+            else:
+                # Current circuit
+                try:
+                    circuit = self.get_circuit_func() if callable(self.get_circuit_func) else None
+                except Exception:
+                    circuit = None
+                if not isinstance(circuit, dict) or 'qubits' not in circuit:
+                    QMessageBox.warning(self, "Empty Circuit", "Current circuit is empty. Please add gates or choose a different training source.")
+                    self.training_in_progress = False
+                    self.start_button.setEnabled(True)
+                    self.stop_button.setEnabled(False)
+                    return
             self.bridge.train_optimizer_agent(
-                circuit=dummy_circuit,
+                circuit=circuit,
                 device_info=device_info,
                 config_overrides=self.agent_config,
-                log_callback=gui_log_callback
+                log_callback=gui_log_callback,
+                circuits=circuits,
+                procedural=procedural
             )
         else:
             self.bridge.train_multi_patch_rl_agent(config_path=config_path, log_callback=gui_log_callback)
         # Do not set training_in_progress to False here; wait for process exit
+
+        # Persist profile on start
+        try:
+            self._save_training_profile()
+        except Exception:
+            pass
 
 
     def _handle_log_update(self, message, progress):
@@ -270,6 +472,58 @@ class TrainingDialog(QDialog):
     def _get_active_provider_device(self):
         # Always return values from hardware.json
         return self.provider_name, self.device_name
+
+    # --- Training profile persistence ---
+    def _profile_path(self):
+        return os.path.join('configs', 'training_profile.json')
+
+    def _load_training_profile(self):
+        path = self._profile_path()
+        if not os.path.exists(path):
+            return
+        with open(path, 'r') as f:
+            prof = json.load(f)
+        # Restore training source
+        source = prof.get('training_source')
+        if source in ["Current Circuit", "Dataset Files", "Procedural Generation"]:
+            idx = ["Current Circuit", "Dataset Files", "Procedural Generation"].index(source)
+            self.training_source_combo.setCurrentIndex(idx)
+        # Restore dataset file paths (lazy load; do not auto-open file dialogs)
+        paths = prof.get('dataset_file_paths', [])
+        if paths:
+            self.dataset_file_paths = paths
+            self.dataset_circuits = self._load_circuits_from_paths(paths)
+        # Restore procedural
+        proc = prof.get('procedural', {})
+        if proc and hasattr(self, 'proc_qubits_min'):
+            self.proc_qubits_min.setValue(int(proc.get('qubits', {}).get('min', self.proc_qubits_min.value())))
+            self.proc_qubits_max.setValue(int(proc.get('qubits', {}).get('max', self.proc_qubits_max.value())))
+            self.proc_gates_min.setValue(int(proc.get('gates', {}).get('min', self.proc_gates_min.value())))
+            self.proc_gates_max.setValue(int(proc.get('gates', {}).get('max', self.proc_gates_max.value())))
+            gs = proc.get('gate_set')
+            if gs and hasattr(self, 'proc_gate_set'):
+                self.proc_gate_set.setText(",".join(gs))
+        # Restore vec config
+        rl = prof.get('rl_config', {})
+        if rl and hasattr(self, 'vec_strategy_combo'):
+            if rl.get('vec_strategy') in ["subproc","dummy","none"]:
+                self.vec_strategy_combo.setCurrentText(rl.get('vec_strategy'))
+        if rl and hasattr(self, 'n_envs_spin'):
+            self.n_envs_spin.setValue(int(rl.get('n_envs', self.n_envs_spin.value())))
+
+    def _save_training_profile(self):
+        prof = {
+            'training_source': self.selected_training_source,
+            'dataset_file_paths': self.dataset_file_paths,
+            'procedural': self._get_procedural_config() if self.selected_training_source == 'Procedural Generation' else {},
+            'rl_config': {
+                'vec_strategy': self.vec_strategy_combo.currentText() if hasattr(self, 'vec_strategy_combo') else 'subproc',
+                'n_envs': int(self.n_envs_spin.value()) if hasattr(self, 'n_envs_spin') else 4
+            }
+        }
+        os.makedirs('configs', exist_ok=True)
+        with open(self._profile_path(), 'w') as f:
+            json.dump(prof, f, indent=2)
 
     def _on_optimizer_provider_changed(self, idx=None):
         self._populate_optimizer_device_list()

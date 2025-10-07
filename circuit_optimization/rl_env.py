@@ -1,6 +1,7 @@
 import gymnasium as gym
 import numpy as np
-from typing import Dict, Any, Optional
+import random
+from typing import Dict, Any, Optional, List
 from circuit_optimization.utils import count_gates, calculate_depth, count_swaps, decompose_to_native_gates
 
 from circuit_optimization.reward_engine import CircuitOptimizationRewardEngine
@@ -16,9 +17,12 @@ class CircuitOptimizationEnvironment(gym.Env):
     """
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, circuit: Dict, device_info: Dict, action_space_size: int = 8, reward_weights: Optional[Dict[str, float]] = None, curriculum: Optional[dict] = None, normalize_reward: bool = False):
+    def __init__(self, circuit: Dict, device_info: Dict, action_space_size: int = 8, reward_weights: Optional[Dict[str, float]] = None, curriculum: Optional[dict] = None, normalize_reward: bool = False, circuits: Optional[List[Dict]] = None, procedural: Optional[dict] = None):
         super().__init__()
         self.device_info = device_info
+        # Training sources
+        self.circuits = [c for c in (circuits or []) if isinstance(c, dict) and c.get('qubits') is not None]
+        self.procedural = procedural or None
         self.original_circuit = circuit
         self.current_circuit = circuit.copy()
         self.prev_circuit = None
@@ -46,6 +50,11 @@ class CircuitOptimizationEnvironment(gym.Env):
         if seed is not None:
             import numpy as np
             np.random.seed(seed)
+        # Select episode circuit based on configured training source
+        if self.procedural:
+            self.original_circuit = self._generate_random_circuit(self.procedural)
+        elif self.circuits:
+            self.original_circuit = random.choice(self.circuits)
         self.current_circuit = self.original_circuit.copy()
         self.prev_circuit = None
         self.steps = 0
@@ -140,3 +149,39 @@ class CircuitOptimizationEnvironment(gym.Env):
     def render(self, mode='human'):
         print(f"Step {self.steps}: Gate count={count_gates(self.current_circuit)}, Depth={calculate_depth(self.current_circuit)}, SWAPs={count_swaps(self.current_circuit)}")
         # Optionally visualize the circuit graphically
+
+    # --- Procedural circuit generation ---
+    def _generate_random_circuit(self, cfg: dict) -> Dict:
+        """Generate a random circuit using device native gates and simple heuristics.
+        cfg keys: {
+          'qubits': {'min': int, 'max': int},
+          'gates': {'min': int, 'max': int},
+          'gate_set': [str] (optional)
+        }
+        """
+        qmin = int((cfg.get('qubits') or {}).get('min', 2))
+        qmax = int((cfg.get('qubits') or {}).get('max', max(2, self.device_info.get('max_qubits', 5))))
+        gmin = int((cfg.get('gates') or {}).get('min', 10))
+        gmax = int((cfg.get('gates') or {}).get('max', 50))
+        n_qubits = max(1, random.randint(min(qmin, qmax), max(qmin, qmax)))
+        n_gates = max(1, random.randint(min(gmin, gmax), max(gmin, gmax)))
+        # Gate set: use provided or device native gates fallback
+        gate_set = cfg.get('gate_set') or list(self.device_info.get('native_gates', ['H','X','Z','CNOT','S','T','CZ']))
+        # Split into single and two-qubit gate pools
+        single_gates = [g for g in gate_set if g.upper() not in {'CNOT','CX','CZ','SWAP','CCX'}]
+        twoq_gates = [g for g in gate_set if g.upper() in {'CNOT','CX','CZ','SWAP'}]
+        circuit = {'qubits': list(range(n_qubits)), 'clbits': [], 'gates': []}
+        t = 0
+        for _ in range(n_gates):
+            # Randomly choose single or two-qubit op (favor single if few qubits)
+            use_twoq = twoq_gates and n_qubits >= 2 and random.random() < 0.35
+            if use_twoq:
+                gname = random.choice(twoq_gates)
+                q1, q2 = random.sample(range(n_qubits), 2)
+                circuit['gates'].append({'id': f'g{len(circuit["gates"])}_{gname}_{q1}_{q2}_{t}', 'name': gname, 'qubits': [q1, q2], 'time': t, 'params': []})
+            else:
+                gname = random.choice(single_gates or ['H'])
+                q = random.randrange(n_qubits)
+                circuit['gates'].append({'id': f'g{len(circuit["gates"])}_{gname}_{q}_{t}', 'name': gname, 'qubits': [q], 'time': t, 'params': []})
+            t += 1
+        return circuit
