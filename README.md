@@ -26,6 +26,84 @@ The framework is composed of the following modular components:
 
 All parameters, including RL agent settings, curriculum phases, reward weights, and hardware profiles, are specified in YAML/JSON config files. No hardcoded values are present in the codebase.
 
+## Run Locally (Virtual Environment)
+
+Use a Python virtual environment to run the GUI locally:
+
+```bash
+# From the repo root
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+pip install -r requirements.txt
+
+# Launch the GUI
+python -c "from circuit_designer.gui_main import main; main()"
+```
+
+- If you run into Qt display issues on Linux, ensure you are in a desktop session and try setting `QT_QPA_PLATFORM=xcb` or `QT_QPA_PLATFORM=wayland`.
+- Entry point lives in `circuit_designer/gui_main.py` (`main()` function). The main window wires the workflow and opens the Training dialog via `TrainingDialog`.
+
+## Train on GCP from the Local App (Cloud GPUs via Vertex AI)
+
+The app can run locally while offloading RL training to Google Cloud Vertex AI (managed GPUs). The GUI will stream logs, allow cancel, and download artifacts from GCS when finished.
+
+### Prerequisites
+
+- GCP project with the following APIs enabled: Vertex AI, Cloud Storage, Cloud Logging.
+- A GCS bucket for artifacts, e.g., `gs://YOUR_BUCKET`.
+- A training container image pushed to Artifact Registry with `cloud/training_entrypoint.py` included (see `docker/Dockerfile.gpu`). Example:
+
+```bash
+# Example variables
+PROJECT_ID=your-project
+REGION=us-central1
+REPO=qcraft
+IMAGE=qcraft-gpu:latest
+
+gcloud auth configure-docker ${REGION}-docker.pkg.dev
+docker build -f docker/Dockerfile.gpu -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE} .
+docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE}
+```
+
+### Credentials
+
+The app uses Google Application Default Credentials (ADC):
+
+- Recommended (interactive):
+  ```bash
+  gcloud auth application-default login
+  ```
+
+- Or store a service-account JSON securely so the app can auto-configure ADC at runtime:
+  ```python
+  from utils.credential_manager import store_gcp_service_account_json
+  store_gcp_service_account_json(open("/path/to/sa.json").read())
+  ```
+  At run time, the GUI attempts ADC; if missing, it calls `utils.credential_manager.ensure_google_adc_from_stored()` to set `GOOGLE_APPLICATION_CREDENTIALS` automatically.
+
+### Using the GUI for Cloud Training
+
+1. Open the app and click "Train Module" to open `TrainingDialog`.
+2. Check "Run on Cloud (GCP)".
+3. Fill in cloud fields:
+   - Project ID, Region (e.g., `us-central1`)
+   - GCS Bucket (e.g., `gs://YOUR_BUCKET`)
+   - Image URI (e.g., `us-central1-docker.pkg.dev/PROJECT/REPO/qcraft-gpu:latest`)
+   - Machine type (e.g., `n1-standard-8`) and optional GPU type/count (e.g., `NVIDIA_TESLA_T4`, 1)
+   - Optional: Dataset GCS URI
+   - Timeout (min) and "Auto-cancel at timeout" if desired
+4. Click "Start Training".
+   - The GUI polls Vertex AI status, streams logs via Cloud Logging, and shows progress.
+   - Click "Stop Training" to cancel the Vertex AI job.
+5. When the job reaches a terminal state, click "Download Artifacts" to fetch the results from GCS to a local folder.
+
+Notes:
+- Artifacts are written under your bucket (e.g., `gs://YOUR_BUCKET/artifacts/<job_name>/`). The GUI will offer to download them locally when available.
+- Logs are fetched via Cloud Logging filters keyed to the Vertex AI CustomJob ID. If logs appear sparse, wait a few seconds or reduce the GUI poll interval.
+- Credential checks and fallback live in `circuit_designer/training_dialog.py::_ensure_gcp_credentials()` and `utils/credential_manager.py`.
+
+
 ## Updates (Oct 1, 2025)
 
 - Packaging now relies on `MANIFEST.in` for resources. Optional extras added in `setup.py`:

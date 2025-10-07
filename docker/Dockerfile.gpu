@@ -1,0 +1,20 @@
+# GPU-enabled training container for Vertex AI
+# Note: Adjust torch CUDA versions to match base image
+FROM nvidia/cuda:12.1.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip git \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip
+
+WORKDIR /opt/ml/code
+COPY requirements.txt ./
+RUN pip install -r requirements.txt \
+    && pip install torch --index-url https://download.pytorch.org/whl/cu121 || true
+
+COPY . .
+ENV PYTHONPATH=/opt/ml/code
+
+ENTRYPOINT ["python3", "cloud/training_entrypoint.py"]

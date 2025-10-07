@@ -15,3 +15,9 @@ torch
 gymnasium
 stim
 pymatching
+google-cloud-aiplatform
+google-cloud-storage
+google-cloud-logging
+cryptography
+keyring
+boto3

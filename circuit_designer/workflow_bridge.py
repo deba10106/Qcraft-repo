@@ -399,7 +399,7 @@ class QuantumWorkflowBridge:
         else:
             raise ValueError(f"Unsupported vectorization strategy: {vec_strategy} with n_envs={n_envs}")
         total_timesteps = rl_env_conf.get('num_episodes', 10000) * 200
-        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048)
+        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048, device='auto')
         # Progress callback for logging
         class ProgressCallback:
             def __init__(self, total, logger, run_id, start_time, log_callback):

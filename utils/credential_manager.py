@@ -414,3 +414,41 @@ def get_credentials(service: str) -> Optional[str]:
     """Get credentials for a service."""
     cred_mgr = CredentialManager()
     return cred_mgr.get_credential(service)
+
+
+# --- GCP convenience helpers ---
+def store_gcp_service_account_json(json_str: str) -> None:
+    """Store GCP service account JSON securely for later use as ADC.
+
+    The JSON string will be encrypted and stored in system keyring.
+    """
+    cred_mgr = CredentialManager()
+    cred_mgr.store_credential('gcp_service_account_json', json_str)
+
+
+def ensure_google_adc_from_stored(temp_path: Optional[str] = None) -> Optional[str]:
+    """Ensure GOOGLE_APPLICATION_CREDENTIALS is set using stored service account JSON.
+
+    If the env var is already set and file exists, returns it. Otherwise, attempts
+    to retrieve 'gcp_service_account_json' from secure storage, writes it to a
+    temp file, sets the env var, and returns the path.
+
+    Returns None if no stored credential exists.
+    """
+    try:
+        current = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        if current and os.path.isfile(current):
+            return current
+        cred_mgr = CredentialManager()
+        json_str = cred_mgr.get_credential('gcp_service_account_json')
+        if not json_str:
+            return None
+        path = temp_path or '/tmp/qcraft-gcp-credentials.json'
+        with open(path, 'w') as f:
+            f.write(json_str)
+        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = path
+        logger.info(f"Set GOOGLE_APPLICATION_CREDENTIALS -> {path}")
+        return path
+    except Exception as e:
+        logger.warning(f"Failed to set GOOGLE_APPLICATION_CREDENTIALS from stored JSON: {e}")
+        return None
