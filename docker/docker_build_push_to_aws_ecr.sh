@@ -15,20 +15,44 @@ set -euo pipefail
 # - Uses the same Dockerfile as GCP: docker/Dockerfile.gpu
 # - The image entrypoint is handled by the SageMaker trainer (cloud.sagemaker_trainer.SageMakerTrainer).
 
-AWS_REGION=${1:-us-east-1}
-REPO=${2:-qcraft-gpu}
-TAG=${3:-latest}
+# Allow CLI args or env overrides
+AWS_REGION=${1:-${AWS_REGION:-us-east-1}}
+REPO=${2:-${REPO:-qcraft-gpu}}
+TAG=${3:-${TAG:-latest}}
+# Optionally override CUDA base image used by Dockerfile
+: "${BASE_IMAGE:=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04}"
+# Set SKIP_PUSH=1 to build without pushing
+: "${SKIP_PUSH:=}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+DOCKERFILE="${SCRIPT_DIR}/Dockerfile.gpu"
+
+if [[ ! -f "${DOCKERFILE}" ]]; then
+  echo "[ERROR] Dockerfile not found at ${DOCKERFILE}" >&2
+  exit 1
+fi
+
+if [[ ! -f "${REPO_ROOT}/requirements.txt" ]]; then
+  echo "[WARN] ${REPO_ROOT}/requirements.txt not found. The Docker build may fail at the requirements step."
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "[ERROR] aws CLI not found. Install AWS CLI v2: https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html" >&2
+  exit 127
+fi
 
 # Resolve account ID
 AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 ECR_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${REPO}:${TAG}"
+LOCAL_TAG="${REPO}:${TAG}"
 
 echo "[INFO] AWS Account: ${AWS_ACCOUNT_ID}"
 echo "[INFO] AWS Region:  ${AWS_REGION}"
 echo "[INFO] ECR URI:     ${ECR_URI}"
+echo "[INFO] Dockerfile:  ${DOCKERFILE}"
+echo "[INFO] Build ctx:   ${REPO_ROOT}"
+echo "[INFO] BASE_IMAGE:  ${BASE_IMAGE}"
 
 # Ensure ECR repo exists
 if ! aws ecr describe-repositories --repository-names "${REPO}" --region "${AWS_REGION}" >/dev/null 2>&1; then
@@ -36,17 +60,22 @@ if ! aws ecr describe-repositories --repository-names "${REPO}" --region "${AWS_
   aws ecr create-repository --repository-name "${REPO}" --region "${AWS_REGION}" >/dev/null
 fi
 
+echo "[INFO] Building Docker image locally: ${LOCAL_TAG}"
+docker build --pull \
+  --build-arg BASE_IMAGE="${BASE_IMAGE}" \
+  -f "${DOCKERFILE}" -t "${LOCAL_TAG}" "${REPO_ROOT}"
+
+if [[ -n "${SKIP_PUSH}" ]]; then
+  echo "[INFO] SKIP_PUSH set. Skipping ECR login/push. Built image: ${LOCAL_TAG}"
+  exit 0
+fi
+
 # Login to ECR
 aws ecr get-login-password --region "${AWS_REGION}" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
 
-# Build
-echo "[INFO] Building Docker image: ${REPO}:${TAG}"
-cd "$SCRIPT_DIR"
-docker build -f Dockerfile.gpu -t "${REPO}:${TAG}" .
-
 # Tag and push
-echo "[INFO] Tagging ${REPO}:${TAG} as ${ECR_URI}"
-docker tag "${REPO}:${TAG}" "${ECR_URI}"
+echo "[INFO] Tagging ${LOCAL_TAG} as ${ECR_URI}"
+docker tag "${LOCAL_TAG}" "${ECR_URI}"
 echo "[INFO] Pushing ${ECR_URI}"
 docker push "${ECR_URI}"
 

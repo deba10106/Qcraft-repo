@@ -1,0 +1,78 @@
+# Exclude VCS and local envs
+.git
+.git/*
+*.swp
+*.swo
+.DS_Store
+
+# Python caches and build artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+.build/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+.env
+
+# IDE and tooling
+.vscode/
+.idea/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.cache/
+
+# Large datasets, artifacts, logs
+outputs/
+artifacts/
+artifacts/*
+logs/
+logs/*
+logging_results/
+results/
+results/*
+checkpoints/
+training_artifacts/
+
+# Notebooks and checkpoints
+*.ipynb
+.ipynb_checkpoints/
+
+# Node/npm (if present)
+node_modules/
+
+# Cloud service local configs (do not bake secrets)
+**/credentials.json
+**/service_account.json
+# Keep configs/ checked in, but ignore any user-local override files
+configs/*.local.yaml
+configs/*.secrets.yaml
+
+# Docker ignores itself
+.dockerignore
+
+# Keep required files
+!requirements.txt
+!docker/
+!circuit_designer/
+!circuit_optimization/
+!fault_tolerant_circuit_builder/
+!scode/
+!hardware_abstraction/
+!code_switcher/
+!compiler/
+!evaluation/
+!execution_simulation/
+!cloud/
+!utils/
+!configs/
+!schemas/
+!assets/
