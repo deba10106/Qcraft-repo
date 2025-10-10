@@ -66,6 +66,38 @@ docker build -f docker/Dockerfile.gpu -t ${REGION}-docker.pkg.dev/${PROJECT_ID}/
 docker push ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO}/${IMAGE}
 ```
 
+#### Build and Push via helper script (recommended)
+
+Use the helper script `docker/docker_build_push_to_gcp_script.sh` which validates paths, supports build-only mode, and config overrides.
+
+- Build only (skip push):
+
+```bash
+SKIP_PUSH=1 bash docker/docker_build_push_to_gcp_script.sh
+```
+
+- Build and push (requires Google Cloud SDK):
+
+```bash
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project YOUR_PROJECT
+
+bash docker/docker_build_push_to_gcp_script.sh
+```
+
+- Override defaults (project/region/repo/image):
+
+```bash
+PROJECT_ID=your-project REGION=us-central1 REPO=qcraft IMAGE=qcraft-gpu:latest \
+  bash docker/docker_build_push_to_gcp_script.sh
+```
+
+Notes:
+- The script uses an absolute Dockerfile path `docker/Dockerfile.gpu` and the repo root as build context.
+- It warns if `requirements.txt` is missing at the repo root (the Dockerfile expects it).
+- If you don’t have `gcloud` installed or authenticated, set `SKIP_PUSH=1` to build locally without pushing.
+
 ### Credentials
 
 The app uses Google Application Default Credentials (ADC):
