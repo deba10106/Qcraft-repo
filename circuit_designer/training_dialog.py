@@ -11,6 +11,7 @@ from scode.api import SurfaceCodeAPI
 from utils.credential_manager import ensure_google_adc_from_stored
 from cloud.remote_trainer import JobConfig
 from cloud.vertex_trainer import VertexAITrainer
+from cloud.sagemaker_trainer import SageMakerTrainer
 
 class TrainingDialog(QDialog):
     log_signal = Signal(str, object)  # message, progress
@@ -58,6 +59,7 @@ class TrainingDialog(QDialog):
         self.tab_widget = QTabWidget()
         main_layout.addWidget(self.tab_widget)
         self._setup_configuration_tab()
+        self._setup_gpu_tab()
         self._setup_training_tab()
         self._setup_results_tab()
         button_layout = QHBoxLayout()
@@ -100,14 +102,91 @@ class TrainingDialog(QDialog):
         self.device_name = hw.get('device_name', 'ibm_hummingbird')
         # Training source configuration
         self._setup_training_source_ui(config_layout)
-        # Cloud training configuration
-        self._setup_cloud_ui(config_layout)
+        # Only show training source for Circuit Optimizer
+        self._update_training_source_visibility()
+        # Cloud training configuration moved to GPU Selection tab
         # Module-specific dynamic config
         self.dynamic_config_area = QVBoxLayout()
         config_layout.addLayout(self.dynamic_config_area)
         self._populate_dynamic_config_fields('surface_code')
         config_layout.addStretch()
         self.tab_widget.addTab(config_tab, "Configuration")
+
+    def _setup_gpu_tab(self):
+        gpu_tab = QWidget()
+        gpu_layout = QVBoxLayout(gpu_tab)
+        # Backend selector
+        backend_group = QGroupBox("GPU Selection")
+        backend_form = QFormLayout(backend_group)
+        self.gpu_backend_combo = QComboBox()
+        self.gpu_backend_combo.addItems(["Local GPU", "Google Cloud (Vertex AI)", "AWS (SageMaker)"])
+        self.gpu_backend_combo.currentIndexChanged.connect(self._on_gpu_backend_changed)
+        backend_form.addRow("Training Backend", self.gpu_backend_combo)
+        gpu_layout.addWidget(backend_group)
+        # GCP group
+        self.gcp_group = QGroupBox("Google Cloud (Vertex AI)")
+        gcp_form = QFormLayout(self.gcp_group)
+        self.gcp_project_edit = QLineEdit(); self.gcp_project_edit.setPlaceholderText("GCP Project ID")
+        self.gcp_region_edit = QLineEdit(); self.gcp_region_edit.setText("us-central1")
+        self.gcs_bucket_edit = QLineEdit(); self.gcs_bucket_edit.setPlaceholderText("gs://bucket-name or bucket-name")
+        self.image_uri_edit = QLineEdit(); self.image_uri_edit.setPlaceholderText("us-docker.pkg.dev/<project>/<repo>/qcraft-gpu:latest")
+        self.machine_type_edit = QLineEdit(); self.machine_type_edit.setText("n1-standard-8")
+        self.accel_type_edit = QLineEdit(); self.accel_type_edit.setText("NVIDIA_TESLA_T4")
+        self.accel_count_spin = QSpinBox(); self.accel_count_spin.setRange(0, 8); self.accel_count_spin.setValue(1)
+        self.dataset_gcs_edit = QLineEdit(); self.dataset_gcs_edit.setPlaceholderText("gs://bucket/path/to/dataset/ (optional)")
+        self.job_name_edit = QLineEdit(); self.job_name_edit.setPlaceholderText("Optional job name")
+        self.timeout_minutes_spin = QSpinBox(); self.timeout_minutes_spin.setRange(0, 14400); self.timeout_minutes_spin.setValue(0)
+        from PySide6.QtWidgets import QCheckBox as _QCheckBox
+        self.auto_shutdown_checkbox = _QCheckBox("Auto-cancel at timeout")
+        gcp_form.addRow("Project", self.gcp_project_edit)
+        gcp_form.addRow("Region", self.gcp_region_edit)
+        gcp_form.addRow("GCS Bucket", self.gcs_bucket_edit)
+        gcp_form.addRow("Image URI", self.image_uri_edit)
+        gcp_form.addRow("Machine Type", self.machine_type_edit)
+        gcp_form.addRow("Accelerator Type", self.accel_type_edit)
+        gcp_form.addRow("Accelerator Count", self.accel_count_spin)
+        gcp_form.addRow("Dataset GCS URI", self.dataset_gcs_edit)
+        gcp_form.addRow("Job Name", self.job_name_edit)
+        gcp_form.addRow("Timeout (min)", self.timeout_minutes_spin)
+        gcp_form.addRow(self.auto_shutdown_checkbox)
+        gpu_layout.addWidget(self.gcp_group)
+        # AWS group
+        self.aws_group = QGroupBox("AWS (SageMaker)")
+        aws_form = QFormLayout(self.aws_group)
+        self.aws_region_edit = QLineEdit(); self.aws_region_edit.setPlaceholderText("us-east-1")
+        self.aws_role_arn_edit = QLineEdit(); self.aws_role_arn_edit.setPlaceholderText("arn:aws:iam::<account>:role/SageMakerExecutionRole")
+        self.aws_s3_bucket_edit = QLineEdit(); self.aws_s3_bucket_edit.setPlaceholderText("s3-bucket-name or s3://bucket")
+        self.aws_image_uri_edit = QLineEdit(); self.aws_image_uri_edit.setPlaceholderText("<account>.dkr.ecr.<region>.amazonaws.com/qcraft-gpu:latest")
+        self.aws_instance_type_edit = QLineEdit(); self.aws_instance_type_edit.setText("ml.g5.xlarge")
+        self.aws_dataset_uri_edit = QLineEdit(); self.aws_dataset_uri_edit.setPlaceholderText("s3://bucket/path (optional)")
+        self.aws_job_name_edit = QLineEdit(); self.aws_job_name_edit.setPlaceholderText("Optional job name")
+        self.aws_timeout_minutes_spin = QSpinBox(); self.aws_timeout_minutes_spin.setRange(0, 14400); self.aws_timeout_minutes_spin.setValue(0)
+        aws_form.addRow("Region", self.aws_region_edit)
+        aws_form.addRow("Role ARN", self.aws_role_arn_edit)
+        aws_form.addRow("S3 Bucket", self.aws_s3_bucket_edit)
+        aws_form.addRow("Image URI", self.aws_image_uri_edit)
+        aws_form.addRow("Instance Type", self.aws_instance_type_edit)
+        aws_form.addRow("Dataset S3 URI", self.aws_dataset_uri_edit)
+        aws_form.addRow("Job Name", self.aws_job_name_edit)
+        aws_form.addRow("Timeout (min)", self.aws_timeout_minutes_spin)
+        gpu_layout.addWidget(self.aws_group)
+        gpu_layout.addStretch()
+        self.tab_widget.addTab(gpu_tab, "GPU Selection")
+        # Initialize visibility
+        self._on_gpu_backend_changed(self.gpu_backend_combo.currentIndex())
+
+    def _on_gpu_backend_changed(self, idx: int):
+        text = self.gpu_backend_combo.currentText()
+        if "Google" in text:
+            self.gcp_group.show()
+            self.aws_group.hide()
+        elif "AWS" in text:
+            self.gcp_group.hide()
+            self.aws_group.show()
+        else:
+            # Local
+            self.gcp_group.hide()
+            self.aws_group.hide()
 
     def _on_module_changed(self, idx):
         modules = ['surface_code', 'optimizer']
@@ -118,6 +197,8 @@ class TrainingDialog(QDialog):
                 widget.setParent(None)
         self._populate_dynamic_config_fields(self.selected_module)
         self._update_ui_for_agent_type()
+        # Toggle training source visibility per module
+        self._update_training_source_visibility()
 
     def _populate_dynamic_config_fields(self, module):
         if module == 'surface_code':
@@ -142,6 +223,17 @@ class TrainingDialog(QDialog):
         self.dataset_file_paths = []
         self.dataset_circuits = []
         self._refresh_training_source_fields()
+
+    def _update_training_source_visibility(self):
+        """Show Training Source only for Circuit Optimizer module."""
+        try:
+            if self.selected_module == 'optimizer':
+                self.training_source_group.show()
+            else:
+                self.training_source_group.hide()
+        except Exception:
+            # If group not yet created, ignore
+            pass
 
     def _on_training_source_changed(self, idx):
         options = ["Current Circuit", "Dataset Files", "Procedural Generation"]
@@ -179,39 +271,7 @@ class TrainingDialog(QDialog):
             preview_btn.clicked.connect(self._preview_procedural_samples)
             self.training_source_area.addWidget(preview_btn)
 
-    # --- Cloud UI ---
-    def _setup_cloud_ui(self, parent_layout: QVBoxLayout):
-        self.cloud_group = QGroupBox("Cloud Training (GCP Vertex AI)")
-        form = QFormLayout(self.cloud_group)
-        self.cloud_enable_checkbox = QCheckBox("Run on Cloud (GCP)") if 'QCheckBox' in globals() else None
-        # Lazy import to avoid missing symbol in context; construct explicitly
-        from PySide6.QtWidgets import QCheckBox
-        self.cloud_enable_checkbox = QCheckBox("Run on Cloud (GCP)")
-        form.addRow(self.cloud_enable_checkbox)
-        self.gcp_project_edit = QLineEdit(); self.gcp_project_edit.setPlaceholderText("GCP Project ID")
-        self.gcp_region_edit = QLineEdit(); self.gcp_region_edit.setText("us-central1")
-        self.gcs_bucket_edit = QLineEdit(); self.gcs_bucket_edit.setPlaceholderText("gs://bucket-name or bucket-name")
-        self.image_uri_edit = QLineEdit(); self.image_uri_edit.setPlaceholderText("us-docker.pkg.dev/<project>/<repo>/qcraft-gpu:latest")
-        self.machine_type_edit = QLineEdit(); self.machine_type_edit.setText("n1-standard-8")
-        self.accel_type_edit = QLineEdit(); self.accel_type_edit.setText("NVIDIA_TESLA_T4")
-        self.accel_count_spin = QSpinBox(); self.accel_count_spin.setRange(0, 8); self.accel_count_spin.setValue(1)
-        self.dataset_gcs_edit = QLineEdit(); self.dataset_gcs_edit.setPlaceholderText("gs://bucket/path/to/dataset/ (optional)")
-        self.job_name_edit = QLineEdit(); self.job_name_edit.setPlaceholderText("Optional job name")
-        form.addRow("Project", self.gcp_project_edit)
-        form.addRow("Region", self.gcp_region_edit)
-        form.addRow("GCS Bucket", self.gcs_bucket_edit)
-        form.addRow("Image URI", self.image_uri_edit)
-        form.addRow("Machine Type", self.machine_type_edit)
-        form.addRow("Accelerator Type", self.accel_type_edit)
-        form.addRow("Accelerator Count", self.accel_count_spin)
-        form.addRow("Dataset GCS URI", self.dataset_gcs_edit)
-        form.addRow("Job Name", self.job_name_edit)
-        # Timeout and auto-cancel controls
-        self.timeout_minutes_spin = QSpinBox(); self.timeout_minutes_spin.setRange(0, 14400); self.timeout_minutes_spin.setValue(0)
-        form.addRow("Timeout (min)", self.timeout_minutes_spin)
-        self.auto_shutdown_checkbox = QCheckBox("Auto-cancel at timeout")
-        form.addRow(self.auto_shutdown_checkbox)
-        parent_layout.addWidget(self.cloud_group)
+    # --- Cloud UI: moved to GPU Selection tab ---
 
     def _select_dataset_files(self):
         paths, _ = QFileDialog.getOpenFileNames(self, "Select circuit file(s)", "", "Circuit files (*.json *.yaml *.yml);;All files (*.*)")
@@ -403,11 +463,12 @@ class TrainingDialog(QDialog):
             self.agent_config['rl_config']['num_episodes'] = int(self.optimizer_episodes_spin.value())
         self.bridge.set_agent_config(self.agent_config)
 
-        # Cloud path: submit Vertex AI job if enabled
-        if hasattr(self, 'cloud_enable_checkbox') and self.cloud_enable_checkbox.isChecked():
-            self._submit_vertex_job()
-            # Do not proceed with local training
-            return
+        # Cloud path based on GPU backend selection
+        if hasattr(self, 'gpu_backend_combo'):
+            backend = self.gpu_backend_combo.currentText()
+            if "Google" in backend or "AWS" in backend:
+                self._submit_cloud_job()
+                return
 
         def gui_log_callback(message, progress):
             self.log_signal.emit(message, progress)
@@ -524,10 +585,64 @@ class TrainingDialog(QDialog):
             # Start polling
             from PySide6.QtCore import QTimer
             self.cloud_poll_timer = QTimer(self)
-            self.cloud_poll_timer.timeout.connect(self._poll_vertex_status)
+            self.cloud_poll_timer.timeout.connect(self._poll_cloud_status)
             self.cloud_poll_timer.start(10000)
         except Exception as e:
             QMessageBox.critical(self, "Cloud Submission Failed", str(e))
+            self.training_in_progress = False
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+
+    def _submit_sagemaker_job(self):
+        # Validate minimal fields
+        region = self.aws_region_edit.text().strip()
+        role_arn = self.aws_role_arn_edit.text().strip()
+        bucket = self.aws_s3_bucket_edit.text().strip()
+        image_uri = self.aws_image_uri_edit.text().strip()
+        if not region or not role_arn or not image_uri or not bucket:
+            QMessageBox.warning(self, "Missing AWS settings", "Region, Role ARN, S3 Bucket, and Image URI are required for AWS SageMaker training.")
+            self.training_in_progress = False
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            return
+        # Build job config
+        cfg = JobConfig(
+            module='optimizer' if self.selected_module == 'optimizer' else 'surface_code',
+            config_overrides=self.agent_config or {},
+            episodes=int(self.optimizer_episodes_spin.value()) if hasattr(self, 'optimizer_episodes_spin') else None,
+            vec_strategy=self.vec_strategy_combo.currentText() if hasattr(self, 'vec_strategy_combo') else None,
+            n_envs=int(self.n_envs_spin.value()) if hasattr(self, 'n_envs_spin') else None,
+            project=None,
+            region=region,
+            bucket=bucket,
+            image_uri=image_uri,
+            machine_type=self.aws_instance_type_edit.text().strip() or None,
+            accelerator_type=None,
+            accelerator_count=None,
+            dataset_gcs_uri=self.aws_dataset_uri_edit.text().strip() or None,
+            procedural_cfg=self._get_procedural_config() if getattr(self, 'selected_training_source', '') == 'Procedural Generation' else None,
+            job_name=self.aws_job_name_edit.text().strip() or None,
+            timeout_seconds=(int(self.aws_timeout_minutes_spin.value()) * 60) if hasattr(self, 'aws_timeout_minutes_spin') else None,
+        )
+        try:
+            self.cloud_trainer = SageMakerTrainer(region=region, role_arn=role_arn, s3_bucket=bucket)
+            job_id = self.cloud_trainer.submit_job(cfg)
+            self.cloud_job_id = job_id
+            self._cloud_project = None
+            self._cloud_region = region
+            self._cloud_logs_last_ts = None
+            self._cloud_start_time = time.time()
+            self._cloud_timeout_seconds = int(self.aws_timeout_minutes_spin.value()) * 60 if hasattr(self, 'aws_timeout_minutes_spin') else 0
+            self._cloud_auto_shutdown = False
+            self._add_log_message(f"[INFO] Submitted SageMaker job: {job_id}")
+            self.status_label.setText("Cloud job submitted")
+            # Start polling (generic)
+            from PySide6.QtCore import QTimer
+            self.cloud_poll_timer = QTimer(self)
+            self.cloud_poll_timer.timeout.connect(self._poll_cloud_status)
+            self.cloud_poll_timer.start(10000)
+        except Exception as e:
+            QMessageBox.critical(self, "AWS Submission Failed", str(e))
             self.training_in_progress = False
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
@@ -562,7 +677,18 @@ class TrainingDialog(QDialog):
             )
             return False
 
-    def _poll_vertex_status(self):
+    def _submit_cloud_job(self):
+        """Dispatch cloud submission based on selected GPU backend."""
+        backend = self.gpu_backend_combo.currentText() if hasattr(self, 'gpu_backend_combo') else "Local GPU"
+        if "Google" in backend:
+            self._submit_vertex_job()
+        elif "AWS" in backend:
+            self._submit_sagemaker_job()
+        else:
+            # Should not be called for Local GPU
+            self._add_log_message("[WARN] _submit_cloud_job called with Local GPU backend; ignoring.")
+
+    def _poll_cloud_status(self):
         if not self.cloud_trainer or not self.cloud_job_id:
             return
         try:
@@ -570,11 +696,12 @@ class TrainingDialog(QDialog):
             self.status_label.setText(f"Cloud status: {st.state}")
             if st.message:
                 self._add_log_message(st.message)
-            # Attempt to stream new logs
-            try:
-                self._pull_vertex_logs()
-            except Exception:
-                pass
+            # Logs: only for Vertex AI currently
+            if isinstance(self.cloud_trainer, VertexAITrainer):
+                try:
+                    self._pull_vertex_logs()
+                except Exception:
+                    pass
             # Auto-cancel on timeout if configured
             if (
                 self._cloud_auto_shutdown and self._cloud_timeout_seconds and self._cloud_start_time

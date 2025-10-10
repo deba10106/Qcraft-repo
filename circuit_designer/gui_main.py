@@ -500,10 +500,34 @@ class StepResultDialog(QDialog):
         if step_name == "layout":
             view_layout_btn = QPushButton("View Layout")
             view_layout_btn.clicked.connect(self._show_layout)
+            # Disable if no visualizable layout
+            can_view = False
+            try:
+                if isinstance(self.result_data, dict):
+                    mpl = self.result_data.get('multi_patch_layout')
+                    if isinstance(mpl, dict) and any(isinstance(p, dict) and p.get('layout') for p in mpl.values()):
+                        can_view = True
+                    if 'layout' in self.result_data and self.result_data.get('layout'):
+                        can_view = True
+            except Exception:
+                can_view = False
+            view_layout_btn.setEnabled(can_view)
+            if not can_view:
+                view_layout_btn.setToolTip("No layout data to display")
             button_layout.addWidget(view_layout_btn)
         elif step_name == "mapping":
             view_mapping_btn = QPushButton("View Mapping")
             view_mapping_btn.clicked.connect(self._show_mapping)
+            # Disable if mapping failed or empty
+            can_view = True
+            try:
+                if not self._mapping_info or self._mapping_info.get('status') == 'failed' or 'error' in self._mapping_info:
+                    can_view = False
+            except Exception:
+                can_view = False
+            view_mapping_btn.setEnabled(can_view)
+            if not can_view:
+                view_mapping_btn.setToolTip("Mapping failed or unavailable")
             button_layout.addWidget(view_mapping_btn)
         elif step_name == "ft_circuit":
             view_circuit_btn = QPushButton("View Optimized Circuit")
@@ -603,11 +627,12 @@ class StepResultDialog(QDialog):
         return tree
     
     def proceed(self):
-        print("[DEBUG] Proceed button clicked")
+        print("[DEBUG] StepResultDialog: Proceed clicked for step:", self._step_name)
         self.proceed_signal.emit()
         self.accept()
     
     def stop(self):
+        print("[DEBUG] StepResultDialog: Stop clicked for step:", self._step_name)
         self.stop_signal.emit()
         self.reject()
     
@@ -621,6 +646,19 @@ class StepResultDialog(QDialog):
                 layout_to_show = {'multi_patch_layout': {0: {'layout': self.result_data['layout']}}}
             else:
                 layout_to_show = self.result_data
+            # Validate visualizable content
+            has_any = False
+            try:
+                mpl = layout_to_show.get('multi_patch_layout', {}) if isinstance(layout_to_show, dict) else {}
+                for _, patch in (mpl or {}).items():
+                    if isinstance(patch, dict) and patch.get('layout') and len(patch.get('layout')) > 0:
+                        has_any = True
+                        break
+            except Exception:
+                has_any = False
+            if not has_any:
+                QMessageBox.warning(self, "No Layout", "No visualizable layout data in this step output.")
+                return
             dlg = LayoutPreviewDialog(self, layout_to_show)
             dlg.exec()
         else:
@@ -820,6 +858,9 @@ class WorkflowWorker(QObject):
     error = Signal(str)
     step_done = Signal(str, dict)  # step_name, result dict
 
+    # Centralized workflow steps
+    STEPS = ["layout", "ft_circuit", "code_switcher", "optimization", "mapping", "execution"]
+
     def __init__(self, circuit_editor, config_dir=None):
         super().__init__()
         self.circuit_editor = circuit_editor
@@ -860,6 +901,15 @@ class WorkflowWorker(QObject):
             if 'circuit' not in self.config_overrides:
                 self.config_overrides['circuit'] = {}
             self.config_overrides['circuit']['logical_qubits'] = logical_qubits
+        # Log parameter snapshot
+        try:
+            dev_name = self.device_info.get('name') if isinstance(self.device_info, dict) else None
+            provider = self.device_info.get('provider') if isinstance(self.device_info, dict) else None
+            print(f"[DEBUG] Params: device={dev_name}, provider={provider}, layout={self.layout_type}, code_distance={self.code_distance}, optimization_method={self.optimization_method}")
+            print(f"[DEBUG] Params: run_config keys={list(self.run_config.keys())}")
+            print(f"[DEBUG] Params: overrides keys={list(self.config_overrides.keys())}")
+        except Exception:
+            pass
 
     def cancel(self):
         self.cancelled = True
@@ -878,6 +928,14 @@ class WorkflowWorker(QObject):
         self.current_step += 1
         self._run_next_step()
 
+    def jump_to_step(self, step_name: str):
+        """Jump directly to a named step in the workflow."""
+        if step_name in self.STEPS:
+            print(f"[DEBUG] WorkflowWorker: jump_to_step -> {step_name}")
+            self.current_step = self.STEPS.index(step_name)
+        else:
+            raise ValueError(f"Unknown step: {step_name}")
+
     def _run_next_step(self):
         """Run the next step in the workflow (WorkflowWorker)"""
         print(f"[DEBUG] WorkflowWorker running next step: step {self.current_step}")
@@ -886,7 +944,7 @@ class WorkflowWorker(QObject):
                 self.finished.emit('cancelled')
                 return
             # Updated workflow: mapping occurs after optimization (multi-patch mapping after FT circuit)
-            steps = ["layout", "ft_circuit", "code_switcher", "optimization", "mapping", "execution"]
+            steps = self.STEPS
             if self.current_step >= len(steps):
                 self.finished.emit('done')
                 return
@@ -896,12 +954,23 @@ class WorkflowWorker(QObject):
             if step_name == "optimization":
                 self.progress.emit("Optimizing circuit...")
                 result = self.workflow_bridge.optimize_circuit(circuit, self.device_info, self.config_overrides)
+                try:
+                    info = result.get('optimization_info', {}) if isinstance(result, dict) else {}
+                    print(f"[DEBUG] Optimization: strategy={info.get('strategy_used')}, fallback_reason={info.get('fallback_reason')}")
+                except Exception:
+                    pass
                 self.step_results[step_name] = result
                 self.step_done.emit("optimization", result)
             elif step_name == "layout":
                 self.progress.emit("Generating surface code layout...")
                 result = self.workflow_bridge.surface_code_api.generate_surface_code_layout(
                     self.layout_type, self.code_distance, self.device_info['name'])
+                try:
+                    mpl = result.get('multi_patch_layout') if isinstance(result, dict) else None
+                    patches = len(mpl) if isinstance(mpl, dict) else 0
+                    print(f"[DEBUG] Layout: patches={patches}, keys={list(result.keys()) if isinstance(result, dict) else type(result)}")
+                except Exception:
+                    pass
                 self.step_results[step_name] = result
                 self.step_done.emit("layout", result)
             elif step_name == "ft_circuit":
@@ -922,11 +991,9 @@ class WorkflowWorker(QObject):
                         circuit, mapping_info, code_spaces, self.device_info
                     )
                 except ValueError as e:
-                    # Show error dialog and stop workflow
+                    # Emit error back to main thread; do not show UI here
                     error_msg = f"FT Circuit Builder Error: {str(e)}\n\nMapping Info: {mapping_info}\nCode Spaces: {code_spaces}\nDevice Info: {self.device_info}"
-                    from PySide6.QtWidgets import QMessageBox
-                    QMessageBox.critical(None, "FT Circuit Error", error_msg)
-                    self.finished.emit('error')
+                    self.error.emit(error_msg)
                     return
                 self.step_results[step_name] = result
                 self.step_done.emit("ft_circuit", result)
@@ -963,12 +1030,27 @@ class WorkflowWorker(QObject):
                 result = self.workflow_bridge.code_switcher.apply_code_switching(
                     ft_circuit, switching_points, protocols, self.device_info
                 )
+                try:
+                    print(f"[DEBUG] CodeSwitcher: result keys={list(result.keys()) if isinstance(result, dict) else type(result)}")
+                except Exception:
+                    pass
                 self.step_results[step_name] = result
                 self.step_done.emit("code_switcher", result)
             elif step_name == "mapping":
                 self.progress.emit("Mapping logical to physical qubits...")
+                # Prefer mapping the FT/optimized circuit when available
+                circuit_to_map = (
+                    self.step_results.get("ft_circuit")
+                    or self.step_results.get("optimization")
+                    or circuit
+                )
+                source = (
+                    "ft_circuit" if self.step_results.get("ft_circuit") is not None
+                    else ("optimization" if self.step_results.get("optimization") is not None else "original")
+                )
+                print(f"[DEBUG] Mapping: using circuit source = {source}")
                 result = self.workflow_bridge.map_circuit_to_surface_code(
-                    circuit,
+                    circuit_to_map,
                     self.device_info['name'],
                     self.layout_type,
                     self.code_distance,
@@ -979,10 +1061,18 @@ class WorkflowWorker(QObject):
                 # --- PATCH: inject qubit_positions into device_info if present ---
                 mapping_info = result.get('mapping_info') if result else None
                 qubit_positions = None
+                try:
+                    mi = mapping_info if isinstance(mapping_info, dict) else {}
+                    mpl = mi.get('multi_patch_layout') if isinstance(mi, dict) else None
+                    patches = len(mpl) if isinstance(mpl, dict) else 0
+                    print(f"[DEBUG] Mapping: status={result.get('status') if isinstance(result, dict) else None}, patches={patches}")
+                except Exception:
+                    pass
                 if mapping_info:
                     # 1. Directly as mapping_info['qubit_positions']
                     if 'qubit_positions' in mapping_info:
-                        qubit_positions = mapping_info['qubit_positions']
+                        qubit_positions = mapping_info['qubit_positions'
+]
                     # 2. Or as a merged dict from all patches in multi_patch_layout
                     elif 'multi_patch_layout' in mapping_info:
                         # Merge all patch layouts into a single dict
@@ -999,7 +1089,22 @@ class WorkflowWorker(QObject):
                 self.step_done.emit("mapping", result)
             elif step_name == "execution":
                 self.progress.emit("Executing on hardware...")
-                result = self.workflow_bridge.executor.run_circuit(circuit, self.run_config)
+                # Use best available circuit for execution
+                circuit_to_exec = (
+                    self.step_results.get("ft_circuit")
+                    or self.step_results.get("optimization")
+                    or circuit
+                )
+                source = (
+                    "ft_circuit" if self.step_results.get("ft_circuit") is not None
+                    else ("optimization" if self.step_results.get("optimization") is not None else "original")
+                )
+                print(f"[DEBUG] Execution: using circuit source = {source}")
+                result = self.workflow_bridge.executor.run_circuit(circuit_to_exec, self.run_config)
+                try:
+                    print(f"[DEBUG] Execution: result keys={list(result.keys()) if isinstance(result, dict) else type(result)}")
+                except Exception:
+                    pass
                 self.step_done.emit("execution", result)
 
         except Exception as e:
@@ -1083,9 +1188,7 @@ class CircuitDesignerGUI(QMainWindow):
         dlg = ConfigDialog(self)
         dlg.exec()
 
-    def _show_training_dialog(self):
-        dlg = TrainingDialog(self)
-        dlg.exec()
+    # removed unused _show_training_dialog
 
     def start_full_workflow(self):
         # Load optimization strategy from optimizer_config.yaml
@@ -1133,12 +1236,12 @@ class CircuitDesignerGUI(QMainWindow):
     def on_workflow_progress(self, message):
         self.status_label.setText(message)
         step_map = {
-            "Optimizing circuit...": 10,
+            "Generating surface code layout...": 10,
             "Transforming to fault-tolerant circuit...": 30,
-            "Applying code switching...": 40,
-            "Generating surface code layout...": 50,
-            "Mapping logical to physical qubits...": 60,
-            "Executing on hardware...": 90,
+            "Applying code switching...": 50,
+            "Optimizing circuit...": 70,
+            "Mapping logical to physical qubits...": 85,
+            "Executing on hardware...": 95,
         }
         self.progress_bar.setValue(step_map.get(message, 0))
 
@@ -1198,6 +1301,17 @@ class CircuitDesignerGUI(QMainWindow):
         # Update UI based on step
         if step_name == "optimization":
             circuit = result
+            # Show optimization strategy/fallback in status label if available
+            try:
+                info = (result or {}).get('optimization_info', {}) if isinstance(result, dict) else {}
+                strat = info.get('strategy_used')
+                fb = info.get('fallback_reason')
+                if strat and fb:
+                    self.status_label.setText(f"Optimization used '{strat}' (fallback: {fb})")
+                elif strat:
+                    self.status_label.setText(f"Optimization strategy: {strat}")
+            except Exception:
+                pass
         elif step_name == "layout":
             layout_result = result
         elif step_name == "ft_circuit":
@@ -1214,7 +1328,68 @@ class CircuitDesignerGUI(QMainWindow):
                 mapping_info = result
                 layout_result = result
             circuit = result
+        # Step result summaries
+        try:
+            if step_name == "layout" and isinstance(result, dict):
+                mpl = result.get('multi_patch_layout')
+                patches = len(mpl) if isinstance(mpl, dict) else 0
+                print(f"[DEBUG][GUI] Layout step summary: patches={patches}, keys={list(result.keys())}")
+            elif step_name == "mapping" and isinstance(result, dict):
+                status = result.get('status')
+                err = result.get('error')
+                mi = mapping_info if isinstance(mapping_info, dict) else {}
+                l2p = mi.get('logical_to_physical') if isinstance(mi, dict) else None
+                lq = len(l2p) if isinstance(l2p, dict) else 0
+                print(f"[DEBUG][GUI] Mapping step summary: status={status}, logical_patches={lq}, error={err}")
+            elif step_name == "optimization" and isinstance(result, dict):
+                info = result.get('optimization_info', {})
+                print(f"[DEBUG][GUI] Optimization summary: strategy={info.get('strategy_used')}, fallback_reason={info.get('fallback_reason')}")
+            elif step_name == "execution":
+                keys = list(result.keys()) if isinstance(result, dict) else str(type(result))
+                print(f"[DEBUG][GUI] Execution step summary: keys={keys}")
+        except Exception:
+            pass
         
+        # If mapping failed, stop workflow immediately
+        if step_name == "mapping" and isinstance(result, dict) and (result.get('status') == 'failed' or 'error' in result):
+            err = result.get('error') or 'Mapping failed.'
+            QMessageBox.critical(self, "Mapping Failed", err)
+            self._stop_workflow()
+            return
+
+        # Special handling for ft_circuit: present choice dialog after FT circuit step only (before any cleanup)
+        if step_name == "ft_circuit":
+            # Do not show FT-ready dialog if FT circuit failed
+            if isinstance(result, dict) and (result.get('status') == 'failed' or 'error' in result):
+                err = result.get('error') or 'Fault-tolerant circuit generation failed.'
+                QMessageBox.critical(self, "FT Circuit Error", err)
+                self._stop_workflow()
+                return
+            choice_dialog = FTCircuitChoiceDialog(self)
+            user_choice = {'optimize': False, 'execute_direct': False}
+            def _choose_optimize():
+                user_choice['optimize'] = True
+            def _choose_execute():
+                user_choice['execute_direct'] = True
+            choice_dialog.optimize_and_execute.connect(_choose_optimize)
+            choice_dialog.execute_directly.connect(_choose_execute)
+            choice_dialog.exec()
+            # Branch workflow based on user choice
+            if user_choice['optimize']:
+                # Jump to optimization step by name
+                if self._workflow_worker is not None:
+                    self._workflow_worker.jump_to_step("optimization")
+                self._run_next_step()
+            elif user_choice['execute_direct']:
+                # Jump to execution step by name
+                if self._workflow_worker is not None:
+                    self._workflow_worker.jump_to_step("execution")
+                self._run_next_step()
+            else:
+                # Cancel or close: stop workflow
+                self._stop_workflow()
+            return
+
         print(f"[DEBUG] Creating StepResultDialog for step: {step_name}")
         # Store dialog as instance variable to prevent garbage collection
         self._active_dialog = StepResultDialog(
@@ -1233,33 +1408,6 @@ class CircuitDesignerGUI(QMainWindow):
             self._workflow_thread.deleteLater()
             self._workflow_thread = None
         if self._workflow_worker is not None and not self._workflow_thread:
-            self._workflow_worker.deleteLater()
-            self._workflow_worker = None
-
-        # Special handling for ft_circuit: present choice dialog after FT circuit step only
-        if step_name == "ft_circuit":
-            choice_dialog = FTCircuitChoiceDialog(self)
-            user_choice = {'optimize': False, 'execute_direct': False}
-            def _choose_optimize():
-                user_choice['optimize'] = True
-            def _choose_execute():
-                user_choice['execute_direct'] = True
-            choice_dialog.optimize_and_execute.connect(_choose_optimize)
-            choice_dialog.execute_directly.connect(_choose_execute)
-            choice_dialog.exec()
-            # Branch workflow based on user choice
-            if user_choice['optimize']:
-                # Proceed to optimizer step
-                self._workflow_worker.current_step += 1  # optimizer
-                self._run_next_step()
-            elif user_choice['execute_direct']:
-                # Skip optimizer, proceed to executor
-                self._workflow_worker.current_step += 2  # skip optimizer, go to executor
-                self._run_next_step()
-            else:
-                # Cancel or close: stop workflow
-                self._stop_workflow()
-            return
             self._workflow_worker.deleteLater()
             self._workflow_worker = None
 
