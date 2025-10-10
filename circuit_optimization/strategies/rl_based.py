@@ -77,13 +77,19 @@ class RLBasedOptimizer:
     def optimize(self, circuit: dict, device_info: dict) -> dict:
         if self.agent is None:
             raise RuntimeError("RL agent not loaded. Please provide a valid model path.")
-        # Dynamically select provider and device from hardware.json
-        with open('./configs/hardware.json', 'r') as f:
-            hw = json.load(f)
-        provider = hw['provider_name'].lower()
-        device_name = hw['device_name']
-        devices_yaml = f'./configs/{provider}_devices.yaml'
-        device_info = load_device_info('./configs/hardware.json', devices_yaml)
+        # Use provided device_info if available; otherwise resolve via ConfigManager + DeviceAbstraction
+        dev_info = device_info
+        if not dev_info:
+            try:
+                from configuration_management.config_manager import ConfigManager
+                hw = ConfigManager.load_hardware_json()
+                provider = hw['provider_name']
+                device_name = hw['device_name']
+                from hardware_abstraction.device_abstraction import DeviceAbstraction
+                dev_info = DeviceAbstraction.get_device_info(provider, device_name)
+            except Exception:
+                # Final fallback: keep original device_info (may be None) and proceed
+                dev_info = device_info
         # RL environment config
         rl_env_conf = self.config.get('rl_config', {})
         reward_weights = rl_env_conf.get('reward_weights', None)
@@ -94,7 +100,7 @@ class RLBasedOptimizer:
         def make_env():
             return CircuitOptimizationEnvironment(
                 circuit=circuit,
-                device_info=device_info,
+                device_info=dev_info,
                 action_space_size=rl_env_conf.get('action_space_size', 8),
                 reward_weights=reward_weights,
                 normalize_reward=normalize_reward,
@@ -106,7 +112,7 @@ class RLBasedOptimizer:
             env = SubprocVecEnv([make_env for _ in range(n_envs)])
         else:
             env = make_env()
-        obs = self._circuit_to_obs(circuit, device_info, env)
+        obs = self._circuit_to_obs(circuit, dev_info, env)
         done = False
         while not done:
             action, _ = self.agent.predict(obs, deterministic=True)
@@ -114,7 +120,7 @@ class RLBasedOptimizer:
             done = done[0] if isinstance(done, (list, tuple)) else done
         optimized_circuit = self._obs_to_circuit(obs, env)
         # Always convert to device native gates
-        optimized_circuit = self._normalize_and_filter_gates(optimized_circuit, device_info)
+        optimized_circuit = self._normalize_and_filter_gates(optimized_circuit, dev_info)
         return optimized_circuit
 
 
@@ -123,8 +129,12 @@ class RLBasedOptimizer:
         artifacts_dir = self._get_artifacts_dir()
         os.makedirs(artifacts_dir, exist_ok=True)
         # Dynamic artifact naming
-        with open('./configs/hardware.json', 'r') as f:
-            hw = json.load(f)
+        try:
+            from configuration_management.config_manager import ConfigManager
+            hw = ConfigManager.load_hardware_json()
+        except Exception:
+            with open('./configs/hardware.json', 'r') as f:
+                hw = json.load(f)
         provider = hw['provider_name'].lower()
         device_name = hw['device_name']
         timestamp = time.strftime('%Y%m%d_%H%M%S')

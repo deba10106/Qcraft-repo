@@ -76,7 +76,11 @@ class RuleBasedOptimizer:
             qubits = gate.get('qubits', [])
             if len(qubits) == 2:
                 q0, q1 = qubits
-                if q1 not in connectivity.get(str(q0), []) and q0 not in connectivity.get(str(q1), []):
+                # Prefer integer-keyed connectivity (DeviceAbstraction normalizes to ints),
+                # but fall back to string keys if necessary for robustness.
+                neighbors_q0 = connectivity.get(q0, connectivity.get(str(q0), []))
+                neighbors_q1 = connectivity.get(q1, connectivity.get(str(q1), []))
+                if q1 not in neighbors_q0 and q0 not in neighbors_q1:
                     # Insert a SWAP before this gate (naive: swap q0 and q1)
                     new_gates.append({'name': 'SWAP', 'qubits': [q0, q1]})
             new_gates.append(gate)

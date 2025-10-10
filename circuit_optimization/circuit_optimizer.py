@@ -79,7 +79,42 @@ class CircuitOptimizer:
             if strategy != self.strategy:
                 self.strategy = strategy
                 self._init_strategy()
-        return self.optimizer.optimize(circuit, device_info)
+        try:
+            optimized = self.optimizer.optimize(circuit, device_info)
+            # Annotate strategy used when possible
+            try:
+                if isinstance(self.optimizer, RuleBasedOptimizer):
+                    (optimized.setdefault('optimization_info', {}))['strategy_used'] = 'rule_based'
+                elif isinstance(self.optimizer, RLBasedOptimizer):
+                    (optimized.setdefault('optimization_info', {}))['strategy_used'] = 'rl'
+                elif isinstance(self.optimizer, MLBasedOptimizer):
+                    (optimized.setdefault('optimization_info', {}))['strategy_used'] = 'ml'
+                else:
+                    (optimized.setdefault('optimization_info', {}))['strategy_used'] = str(type(self.optimizer).__name__)
+            except Exception:
+                pass
+            return optimized
+        except (RuntimeError, ImportError) as e:
+            # Fallback behavior: if RL/ML not available, downgrade to rule-based
+            msg = str(e)
+            needs_fallback = False
+            if isinstance(self.optimizer, RLBasedOptimizer):
+                needs_fallback = True
+            # Detect common RL errors
+            if 'RL agent not loaded' in msg or 'stable-baselines3' in msg:
+                needs_fallback = True
+            if needs_fallback:
+                print(f"[WARN][CircuitOptimizer] {msg}. Falling back to rule-based optimization.")
+                self.optimizer = RuleBasedOptimizer(config)
+                optimized = self.optimizer.optimize(circuit, device_info)
+                try:
+                    info = optimized.setdefault('optimization_info', {})
+                    info['strategy_used'] = 'rule_based'
+                    info['fallback_reason'] = msg
+                except Exception:
+                    pass
+                return optimized
+            raise
 
     def get_optimization_report(self, original_circuit: dict, optimized_circuit: dict) -> dict:
         """

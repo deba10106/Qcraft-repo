@@ -79,29 +79,40 @@ The app uses Google Application Default Credentials (ADC):
   ```python
   from utils.credential_manager import store_gcp_service_account_json
   store_gcp_service_account_json(open("/path/to/sa.json").read())
-  ```
   At run time, the GUI attempts ADC; if missing, it calls `utils.credential_manager.ensure_google_adc_from_stored()` to set `GOOGLE_APPLICATION_CREDENTIALS` automatically.
 
-### Using the GUI for Cloud Training
+### Using the GUI for Cloud or Local GPU Training
 
 1. Open the app and click "Train Module" to open `TrainingDialog`.
-2. Check "Run on Cloud (GCP)".
-3. Fill in cloud fields:
-   - Project ID, Region (e.g., `us-central1`)
-   - GCS Bucket (e.g., `gs://YOUR_BUCKET`)
-   - Image URI (e.g., `us-central1-docker.pkg.dev/PROJECT/REPO/qcraft-gpu:latest`)
-   - Machine type (e.g., `n1-standard-8`) and optional GPU type/count (e.g., `NVIDIA_TESLA_T4`, 1)
-   - Optional: Dataset GCS URI
-   - Timeout (min) and "Auto-cancel at timeout" if desired
+2. Open the "GPU Selection" tab and choose a backend from the dropdown:
+   - Local GPU (default): trains on your local machine; no cloud fields are shown.
+   - Google Cloud (Vertex AI): shows GCP fields.
+   - AWS (SageMaker): shows AWS fields.
+3. If using Google Cloud (Vertex AI), fill in:
+     - Project ID, Region (e.g., `us-central1`)
+     - GCS Bucket (e.g., `gs://YOUR_BUCKET`)
+     - Image URI (e.g., `us-central1-docker.pkg.dev/PROJECT/REPO/qcraft-gpu:latest`)
+     - Machine type (e.g., `n1-standard-8`) and optional GPU type/count (e.g., `NVIDIA_TESLA_T4`, 1)
+     - Optional: Dataset GCS URI
+     - Timeout (min) and "Auto-cancel at timeout" if desired
+   If using AWS (SageMaker), fill in:
+      - Region (e.g., `us-east-1`)
+      - Role ARN (e.g., `arn:aws:iam::<account>:role/SageMakerExecutionRole`)
+      - S3 Bucket (e.g., `s3://YOUR_BUCKET` or `YOUR_BUCKET`)
+      - Image URI (e.g., `<account>.dkr.ecr.<region>.amazonaws.com/qcraft-gpu:latest`)
+      - Instance type (e.g., `ml.g5.xlarge`)
+      - Optional: Dataset S3 URI, Job Name, Timeout (min)
 4. Click "Start Training".
    - The GUI polls Vertex AI status, streams logs via Cloud Logging, and shows progress.
    - Click "Stop Training" to cancel the Vertex AI job.
 5. When the job reaches a terminal state, click "Download Artifacts" to fetch the results from GCS to a local folder.
 
+Note: AWS (SageMaker) support is experimental and may require additional setup.
 Notes:
 - Artifacts are written under your bucket (e.g., `gs://YOUR_BUCKET/artifacts/<job_name>/`). The GUI will offer to download them locally when available.
 - Logs are fetched via Cloud Logging filters keyed to the Vertex AI CustomJob ID. If logs appear sparse, wait a few seconds or reduce the GUI poll interval.
 - Credential checks and fallback live in `circuit_designer/training_dialog.py::_ensure_gcp_credentials()` and `utils/credential_manager.py`.
+ - For AWS, SageMaker artifacts are downloaded from the configured S3 output path (uses `cloud/sagemaker_trainer.py`). Ensure your environment has AWS credentials and IAM permissions for SageMaker and S3.
 
 
 ## Updates (Oct 1, 2025)
@@ -651,7 +662,7 @@ Select a provider and device in `configs/hardware.json`. Provider must match a d
 1. Edit `configs/multi_patch_rl_agent.yaml` to set training parameters and choose the code family via `multi_patch_rl_agent.environment.code_family` (surface or qldpc).
 2. Edit `configs/hardware.json` to select your provider and device. The provider should match the prefix of a devices YAML file (e.g., `ibm` for `ibm_devices.yaml`).
 3. (Optional) Edit or select a hardware/device YAML file in `configs/`.
-4. Edit `configs/gates.yaml` to define the set of quantum gates available in the circuit designer and backend modules. This file is required for the GUI and backend to function correctly.
+4. Edit `configs/gates.yaml` to define the set of gates shown in the circuit designer (GUI palette). Backend enforcement of native gate sets uses provider/device configs (e.g., `configs/ibm_devices.yaml`, `configs/ionq_devices.yaml`) selected via `configs/hardware.json`. Optimizers will decompose any non-native gates to the device's `native_gates` from those files.
 5. Run the RL agent training pipeline:
    
    - GUI: Launch `qcraft`, open the Training tab, and click "Start Training" under "Code Patch Optimizer".
