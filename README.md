@@ -1,8 +1,35 @@
 # Qcraft: Code Patch Optimizer (Surface + qLDPC) Using Reinforcement Learning
 
+## Screenshots
+
+> If the images do not render, place them under `assets/screenshots/` with the filenames below.
+
+- Quantum Circuit Designer (Classic)
+  
+  ![Quantum Circuit Designer](assets/screenshots/designer_classic.png)
+
+- Layout Preview
+  
+  ![Surface Code Layout Preview](assets/screenshots/layout_result_table.png)
+
 ## Introduction
 
-Quantum error correction is a cornerstone of scalable quantum computing. This project presents a modular, configuration‑driven framework for generating, mapping, and optimizing quantum error‑correcting code patches on real hardware using reinforcement learning (RL). It now supports multiple code families (Surface and qLDPC) with a family‑aware training pipeline controlled entirely by YAML configs. The system supports curriculum learning, multi‑patch mapping, and is designed for extensibility, reproducibility, and hardware‑awareness.
+Qcraft is a privacy-first desktop application and compiler that helps you design, map, and optimize fault-tolerant quantum circuits on your local machine.
+
+What the desktop app is for:
+- Design or import logical quantum circuits and visualize them in the GUI.
+- Generate hardware-aware code layouts (Surface, qLDPC) for chosen devices.
+- Assemble fault-tolerant (FT) circuits from layouts and mapping info.
+- Optimize circuits using RL/ML or rule-based strategies with graceful fallback when RL is unavailable.
+- Map logical to physical qubits and simulate/execute to validate results.
+
+How it works (high level):
+- You configure provider/device and code family in YAML.
+- The workflow runs steps: layout → FT circuit → code switching → optimization → mapping → execution/simulation.
+- Results at each step are inspectable in dialogs, including layouts, mappings, and FT circuits.
+- Errors are surfaced and the UI offers safe fallbacks and branching choices.
+
+Everything is configuration-driven (YAML) and family-aware (Surface and qLDPC). Curriculum learning, multi-patch mapping, and hardware-aware optimizations are supported end-to-end.
 
 ## Methodology
 
@@ -262,21 +289,6 @@ sequenceDiagram
   FT-->>ORCH: ft_circuit
   ORCH->>LOG: log events, KPIs
 ```
-
-## Screenshots
-
-> If the images do not render, place them under `assets/screenshots/` with the filenames below.
-
-- Quantum Circuit Designer (Classic)
-  
-  ![Quantum Circuit Designer](assets/screenshots/designer_classic.png)
-
-- Layout Preview
-  
-  ![Surface Code Layout Preview](assets/screenshots/layout_result_table.png)
-
-
-
 
 ## Selecting Code Family (Surface vs qLDPC)
 
