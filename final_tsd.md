@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 | SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com> -->
+
 # QCraft — Technical Specification Document (TSD)
 Privacy-Preserving, Adaptive Quantum Circuit Execution and Error Correction Platform
 

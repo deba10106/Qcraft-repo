@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 | SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com> -->
+
 # QCraft Test Plan (Repository: Qcraft-repo)
 
 Last updated: 2025-10-07 10:12 (local)
