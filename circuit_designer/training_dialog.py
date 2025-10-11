@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QGroupBox, QFormLayout, QComboBox, QDoubleSpinBox, QSpinBox, QPushButton, QLabel, QProgressBar, QTextEdit, QMessageBox, QFileDialog, QLineEdit
 from PySide6.QtCore import QTimer, Signal
 from .workflow_bridge import QuantumWorkflowBridge

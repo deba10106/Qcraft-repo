@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 from circuit_optimization.circuit_optimizer import CircuitOptimizer
 from configuration_management.config_manager import ConfigManager
 from hardware_abstraction.device_abstraction import DeviceAbstraction

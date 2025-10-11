@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 def fuse_gates(circuit: dict) -> dict:
     """
     Fuse consecutive identical single-qubit gates (same name, qubit, params) into one.

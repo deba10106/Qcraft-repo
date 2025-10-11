@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 set -euo pipefail
 
 # ==== Config (override via env) ====

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 # Shared constants for RL environments (Surface and qLDPC)
 # Centralizing these avoids divergence across environments and stabilizes SB3 interfaces.
 

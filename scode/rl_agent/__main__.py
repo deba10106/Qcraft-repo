@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 import sys
 raise SystemExit(
     "This entrypoint is deprecated. Launch training via the GUI or use scode/api.py::SurfaceCodeAPI.train_surface_code_agent() "

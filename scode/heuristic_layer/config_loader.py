@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 # DEPRECATED: Use configuration_management.config_manager.ConfigManager and hardware_abstraction.device_abstraction.DeviceAbstraction for all config and device loading.
 # This file now hard-fails on import to prevent accidental usage.
 raise ImportError("scode.heuristic_layer.config_loader is deprecated. Use ConfigManager and DeviceAbstraction instead.")

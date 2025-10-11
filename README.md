@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0 | SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com> -->
+
 # Qcraft: Code Patch Optimizer (Surface + qLDPC) Using Reinforcement Learning
 
 ## Screenshots
@@ -66,6 +68,30 @@ pip install -r requirements.txt
 
 # Launch the GUI
 python -c "from circuit_designer.gui_main import main; main()"
+```
+
+## License
+
+- This repository is licensed under the PolyForm Noncommercial License 1.0.0.
+- Copyright (c) 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+- Commercial use is prohibited. Education and research use is allowed under the license.
+- Full license text: https://polyformproject.org/licenses/noncommercial/1.0.0/
+
+SPDX headers can be applied to all source files using the helper script:
+
+```bash
+# Dry run: show files that would be updated
+python3 scripts/apply_spdx_headers.py --dry-run
+
+# Apply headers in-place
+python3 scripts/apply_spdx_headers.py --apply
+```
+
+Each file will receive lines like the following at the top (comment style adjusted per language):
+
+```
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
 ```
 
 - If you run into Qt display issues on Linux, ensure you are in a desktop session and try setting `QT_QPA_PLATFORM=xcb` or `QT_QPA_PLATFORM=wayland`.

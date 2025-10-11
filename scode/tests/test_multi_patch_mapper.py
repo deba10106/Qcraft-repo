@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 import unittest
 from scode.heuristic_layer.heuristic_initialization_layer import HeuristicInitializationLayer
 from configuration_management.config_manager import ConfigManager

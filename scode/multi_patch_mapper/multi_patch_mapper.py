@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 import copy
 from typing import List, Dict, Any, Optional, Callable
 from scode.heuristic_layer.surface_code_object import SurfaceCodeObject

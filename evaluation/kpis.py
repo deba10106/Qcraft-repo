@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 from typing import Dict, Any
 
 def compute_mapping_kpis(mapping_info: Dict[str, Any]) -> Dict[str, Any]:

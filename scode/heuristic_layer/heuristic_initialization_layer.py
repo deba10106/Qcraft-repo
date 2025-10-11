@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 import matplotlib.pyplot as plt
 import networkx as nx
 from typing import Dict, List, Tuple, Any, Optional, Set

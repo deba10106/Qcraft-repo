@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# SPDX-FileCopyrightText: 2025 Dr. Debasis Mondal <deba10106@gmail.com>
+
 from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QListWidget, QTextEdit, QPushButton, QLabel, QSplitter, QGroupBox, QFormLayout, QLineEdit, QMessageBox, QTabWidget, QWidget, QSpinBox, QDoubleSpinBox, QComboBox, QColorDialog, QScrollArea
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
