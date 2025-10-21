@@ -15,6 +15,7 @@ from utils.credential_manager import ensure_google_adc_from_stored
 from cloud.remote_trainer import JobConfig
 from cloud.vertex_trainer import VertexAITrainer
 from cloud.sagemaker_trainer import SageMakerTrainer
+from cloud.ssh_trainer import SshDockerTrainer
 
 class TrainingDialog(QDialog):
     log_signal = Signal(str, object)  # message, progress
@@ -122,7 +123,7 @@ class TrainingDialog(QDialog):
         backend_group = QGroupBox("GPU Selection")
         backend_form = QFormLayout(backend_group)
         self.gpu_backend_combo = QComboBox()
-        self.gpu_backend_combo.addItems(["Local GPU", "Google Cloud (Vertex AI)", "AWS (SageMaker)"])
+        self.gpu_backend_combo.addItems(["Local GPU", "Remote (SSH Docker)", "Google Cloud (Vertex AI)", "AWS (SageMaker)"])
         self.gpu_backend_combo.currentIndexChanged.connect(self._on_gpu_backend_changed)
         backend_form.addRow("Training Backend", self.gpu_backend_combo)
         gpu_layout.addWidget(backend_group)
@@ -173,6 +174,30 @@ class TrainingDialog(QDialog):
         aws_form.addRow("Job Name", self.aws_job_name_edit)
         aws_form.addRow("Timeout (min)", self.aws_timeout_minutes_spin)
         gpu_layout.addWidget(self.aws_group)
+        # SSH group
+        self.ssh_group = QGroupBox("Remote (SSH Docker)")
+        ssh_form = QFormLayout(self.ssh_group)
+        from PySide6.QtWidgets import QSpinBox as _QSpinBox
+        self.ssh_host_edit = QLineEdit(); self.ssh_host_edit.setPlaceholderText("gpu.example.com")
+        self.ssh_user_edit = QLineEdit(); self.ssh_user_edit.setPlaceholderText("ubuntu")
+        self.ssh_port_spin = _QSpinBox(); self.ssh_port_spin.setRange(1, 65535); self.ssh_port_spin.setValue(22)
+        self.ssh_key_edit = QLineEdit(); self.ssh_key_edit.setPlaceholderText("~/.ssh/id_rsa")
+        self.ssh_image_edit = QLineEdit(); self.ssh_image_edit.setPlaceholderText("repo/qcraft-gpu:latest")
+        self.ssh_base_dir_edit = QLineEdit(); self.ssh_base_dir_edit.setText("~/qcraft_remote")
+        self.ssh_local_cfg_edit = QLineEdit(); self.ssh_local_cfg_edit.setPlaceholderText("/path/to/configs")
+        self.ssh_upload_btn = QPushButton("Upload Configs")
+        self.ssh_upload_btn.clicked.connect(self._on_ssh_upload_configs)
+        self.ssh_download_btn = QPushButton("Download Remote Configs")
+        self.ssh_download_btn.clicked.connect(self._on_ssh_download_configs)
+        ssh_form.addRow("Host", self.ssh_host_edit)
+        ssh_form.addRow("User", self.ssh_user_edit)
+        ssh_form.addRow("Port", self.ssh_port_spin)
+        ssh_form.addRow("SSH Key Path", self.ssh_key_edit)
+        ssh_form.addRow("Docker Image", self.ssh_image_edit)
+        ssh_form.addRow("Remote Base Dir", self.ssh_base_dir_edit)
+        ssh_form.addRow("Local Config Dir", self.ssh_local_cfg_edit)
+        ssh_form.addRow(self.ssh_upload_btn, self.ssh_download_btn)
+        gpu_layout.addWidget(self.ssh_group)
         gpu_layout.addStretch()
         self.tab_widget.addTab(gpu_tab, "GPU Selection")
         # Initialize visibility
@@ -183,13 +208,20 @@ class TrainingDialog(QDialog):
         if "Google" in text:
             self.gcp_group.show()
             self.aws_group.hide()
+            self.ssh_group.hide()
         elif "AWS" in text:
             self.gcp_group.hide()
             self.aws_group.show()
+            self.ssh_group.hide()
+        elif "Remote" in text:
+            self.gcp_group.hide()
+            self.aws_group.hide()
+            self.ssh_group.show()
         else:
             # Local
             self.gcp_group.hide()
             self.aws_group.hide()
+            self.ssh_group.hide()
 
     def _on_module_changed(self, idx):
         modules = ['surface_code', 'optimizer']
@@ -650,6 +682,100 @@ class TrainingDialog(QDialog):
             self.start_button.setEnabled(True)
             self.stop_button.setEnabled(False)
 
+    # --- SSH Docker Remote ---
+    def _ssh_cfg_from_ui(self) -> JobConfig:
+        # Build JobConfig with SSH fields from UI
+        episodes = int(self.optimizer_episodes_spin.value()) if hasattr(self, 'optimizer_episodes_spin') else None
+        vec_strategy = self.vec_strategy_combo.currentText() if hasattr(self, 'vec_strategy_combo') else None
+        n_envs = int(self.n_envs_spin.value()) if hasattr(self, 'n_envs_spin') else None
+        overrides = self.agent_config or {}
+        return JobConfig(
+            module='optimizer' if self.selected_module == 'optimizer' else 'surface_code',
+            config_overrides=overrides,
+            episodes=episodes,
+            vec_strategy=vec_strategy,
+            n_envs=n_envs,
+            image_uri=self.ssh_image_edit.text().strip() if hasattr(self, 'ssh_image_edit') else None,
+            job_name=self.job_name_edit.text().strip() or None if hasattr(self, 'job_name_edit') else None,
+            remote_host=self.ssh_host_edit.text().strip(),
+            remote_user=self.ssh_user_edit.text().strip(),
+            remote_port=int(self.ssh_port_spin.value()) if hasattr(self, 'ssh_port_spin') else None,
+            ssh_key_path=self.ssh_key_edit.text().strip() or None,
+            remote_base_dir=self.ssh_base_dir_edit.text().strip() or None,
+            local_config_dir=self.ssh_local_cfg_edit.text().strip() or None,
+            procedural_cfg=self._get_procedural_config() if getattr(self, 'selected_training_source', '') == 'Procedural Generation' else None,
+        )
+
+    def _submit_ssh_job(self):
+        # Validate minimal fields
+        try:
+            host = self.ssh_host_edit.text().strip()
+            user = self.ssh_user_edit.text().strip()
+            image = self.ssh_image_edit.text().strip()
+        except Exception:
+            host = user = image = ''
+        if not host or not user or not image:
+            QMessageBox.warning(self, "Missing SSH settings", "Host, User, and Docker Image are required for Remote (SSH Docker) training.")
+            self.training_in_progress = False
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+            return
+        cfg = self._ssh_cfg_from_ui()
+        try:
+            self.cloud_trainer = SshDockerTrainer()
+            job_id = self.cloud_trainer.submit_job(cfg)
+            self.cloud_job_id = job_id
+            self._add_log_message(f"[INFO] Submitted SSH Docker job: {job_id}@{cfg.remote_host}")
+            self.status_label.setText("Remote job submitted")
+            # Start polling
+            from PySide6.QtCore import QTimer
+            self.cloud_poll_timer = QTimer(self)
+            self.cloud_poll_timer.timeout.connect(self._poll_cloud_status)
+            self.cloud_poll_timer.start(5000)
+        except Exception as e:
+            QMessageBox.critical(self, "SSH Submission Failed", str(e))
+            self.training_in_progress = False
+            self.start_button.setEnabled(True)
+            self.stop_button.setEnabled(False)
+
+    def _on_ssh_upload_configs(self):
+        # Upload local configs dir to remote
+        try:
+            local_dir = self.ssh_local_cfg_edit.text().strip()
+        except Exception:
+            local_dir = ''
+        if not local_dir or not os.path.isdir(local_dir):
+            d = QFileDialog.getExistingDirectory(self, "Select local config folder")
+            if not d:
+                return
+            self.ssh_local_cfg_edit.setText(d)
+            local_dir = d
+        try:
+            cfg = self._ssh_cfg_from_ui()
+            tr = SshDockerTrainer()
+            tr.upload_configs(local_dir, cfg)
+            QMessageBox.information(self, "Configs Uploaded", "Local configs uploaded to remote host.")
+            self._add_log_message("[INFO] Uploaded local configs to remote host")
+        except Exception as e:
+            QMessageBox.critical(self, "Upload Failed", str(e))
+
+    def _on_ssh_download_configs(self):
+        # Download remote configs to a chosen local folder
+        dest = QFileDialog.getExistingDirectory(self, "Select download folder")
+        if not dest:
+            return
+        try:
+            cfg = self._ssh_cfg_from_ui()
+            tr = SshDockerTrainer()
+            out = tr.download_configs(dest, cfg)
+            if out:
+                QMessageBox.information(self, "Configs Downloaded", f"Configs downloaded to: {dest}")
+                self._add_log_message(f"[INFO] Downloaded remote configs to {dest}")
+            else:
+                QMessageBox.warning(self, "No Configs", "Could not download remote configs (folder may not exist).")
+        except Exception as e:
+            QMessageBox.critical(self, "Download Failed", str(e))
+
     def _ensure_gcp_credentials(self) -> bool:
         try:
             import google.auth  # type: ignore
@@ -687,6 +813,8 @@ class TrainingDialog(QDialog):
             self._submit_vertex_job()
         elif "AWS" in backend:
             self._submit_sagemaker_job()
+        elif "Remote" in backend:
+            self._submit_ssh_job()
         else:
             # Should not be called for Local GPU
             self._add_log_message("[WARN] _submit_cloud_job called with Local GPU backend; ignoring.")

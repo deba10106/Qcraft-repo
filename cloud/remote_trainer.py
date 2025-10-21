@@ -25,6 +25,14 @@ class JobConfig:
     timeout_seconds: Optional[int] = None
     labels: Optional[Dict[str, str]] = None
 
+    # SSH Docker (remote GPU) fields
+    remote_host: Optional[str] = None
+    remote_user: Optional[str] = None
+    remote_port: Optional[int] = None
+    ssh_key_path: Optional[str] = None
+    remote_base_dir: Optional[str] = None  # e.g., ~/qcraft_remote
+    local_config_dir: Optional[str] = None  # local path to upload to remote configs/
+
 
 @dataclass
 class JobStatus:

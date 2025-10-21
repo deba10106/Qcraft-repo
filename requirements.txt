@@ -1,7 +1,7 @@
 PySide6
 PyYAML
 jsonschema
-qiskit>=1.0
+qiskit
 qiskit-aer
 qiskit-ibm-runtime
 python-dotenv
