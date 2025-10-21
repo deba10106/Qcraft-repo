@@ -1,0 +1,28 @@
+# SSH Docker trainer image (GPU-enabled)
+# Matches ssh_trainer.py volume mounts and paths
+ARG BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+FROM ${BASE_IMAGE}
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y \
+    python3 python3-pip git \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN python3 -m pip install --upgrade pip
+
+# Place code under /workspace/qcraft so that:
+# - cloud/training_entrypoint.py resolves ../configs -> /workspace/qcraft/configs
+# - outputs written to ./outputs -> /workspace/qcraft/outputs
+WORKDIR /workspace/qcraft
+COPY requirements.txt ./
+RUN pip install -r requirements.txt \
+    && pip install torch --index-url https://download.pytorch.org/whl/cu121 || true
+
+COPY . .
+ENV PYTHONPATH=/workspace/qcraft
+
+# Add tiny wrapper to support both `python -m cloud.training_entrypoint` and raw args
+COPY docker/entrypoint.ssh.sh /usr/local/bin/entrypoint.ssh.sh
+RUN chmod +x /usr/local/bin/entrypoint.ssh.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.ssh.sh"]
