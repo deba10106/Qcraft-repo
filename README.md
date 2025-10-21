@@ -200,6 +200,107 @@ Notes:
  - For AWS, SageMaker artifacts are downloaded from the configured S3 output path (uses `cloud/sagemaker_trainer.py`). Ensure your environment has AWS credentials and IAM permissions for SageMaker and S3.
 
 
+## Train on Remote GPU via SSH (Docker)
+
+The app can train on a remote GPU host over SSH using Docker. The GUI launches and stops the remote container for you; you do not need to pre-start Docker containers. You only need SSH access and a compatible Docker image available on the remote.
+
+### Prerequisites (Remote Host)
+
+- **GPU + NVIDIA runtime**: NVIDIA drivers and `nvidia-container-toolkit` installed so `docker run --gpus all ...` works.
+- **Docker**: User can run Docker without sudo prompts (or has passwordless sudo for Docker).
+- **SSH access**: Key-based login recommended. Port open (default 22).
+- **Disk layout**: A base directory for configs/artifacts, e.g. `~/qcraft_remote`.
+
+### Build the SSH image locally
+
+Use the SSH-oriented Dockerfile which aligns with the trainer’s mount paths (`/workspace/qcraft/configs` and `/workspace/qcraft/outputs`).
+
+```bash
+# From repo root
+docker build -f docker/Dockerfile.ssh -t yourrepo/qcraft-gpu:latest .
+```
+
+`docker/Dockerfile.ssh` sets `WORKDIR /workspace/qcraft` and includes a small wrapper entrypoint `docker/entrypoint.ssh.sh` so the container runs `python -m cloud.training_entrypoint ...` by default.
+
+### Make the image available on the remote
+
+Choose one method:
+
+- **Option A: Push to a registry and pull on remote**
+
+```bash
+# Tag and push to a registry you control
+docker tag yourrepo/qcraft-gpu:latest REGISTRY/ORG/qcraft-gpu:latest
+docker push REGISTRY/ORG/qcraft-gpu:latest
+
+# On remote host (over SSH)
+ssh user@gpu.example.com "docker pull REGISTRY/ORG/qcraft-gpu:latest"
+```
+
+- **Option B: Copy as a tarball**
+
+```bash
+# Save locally and transfer
+docker save yourrepo/qcraft-gpu:latest -o qcraft-gpu.tar
+scp -P 22 qcraft-gpu.tar user@gpu.example.com:~/
+ssh user@gpu.example.com "docker load -i ~/qcraft-gpu.tar"
+```
+
+You can verify GPU access on the remote with a quick dry run:
+
+```bash
+ssh user@gpu.example.com \
+  "docker run --rm --gpus all yourrepo/qcraft-gpu:latest python -c 'import torch; print(torch.cuda.is_available())'"
+```
+
+### Run the app locally (Python venv)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip
+pip install -r requirements.txt
+python -c "from circuit_designer.gui_main import main; main()"
+```
+
+### Train from the GUI (SSH backend)
+
+1. Open the "GPU Selection" tab.
+2. Choose **Remote (SSH Docker)**.
+3. Fill in:
+   - **Host** (e.g., `gpu.example.com`), **User** (e.g., `ubuntu`), **Port** (e.g., `22`).
+   - **SSH Key Path** (e.g., `~/.ssh/id_rsa`). Ensure your key is unlocked or an agent is running.
+   - **Docker Image** (e.g., `yourrepo/qcraft-gpu:latest`) — must already exist on the remote host (pulled or loaded).
+   - **Remote Base Dir** (e.g., `~/qcraft_remote`). The trainer will create:
+     - `~/qcraft_remote/configs` (uploaded configs mount)
+     - `~/qcraft_remote/artifacts/<job_id>` (outputs mount)
+   - (Optional) **Local Config Dir** (a folder on your machine that contains configs like `configs/hardware.json`).
+4. Click **Upload Configs** (optional) to copy your Local Config Dir to `~/qcraft_remote/configs` on the remote.
+5. Click **Start Training**.
+   - The GUI will SSH to the host, ensure directories exist, and run:
+     - `docker run --gpus all --name <job_id> \\\n+        -v ~/qcraft_remote/configs:/workspace/qcraft/configs \\\n+        -v ~/qcraft_remote/artifacts/<job_id>:/workspace/qcraft/outputs \\\n+        yourrepo/qcraft-gpu:latest python -m cloud.training_entrypoint ...`
+   - Status is polled via `docker inspect` over SSH. When finished, state becomes `SUCCEEDED`.
+6. Click **Download Artifacts** to `scp` the folder `~/qcraft_remote/artifacts/<job_id>` to a local directory.
+
+### Do I need to start Docker containers manually on the remote?
+
+No. The GUI starts and stops the container over SSH automatically (it runs `docker run ...` and `docker stop <job_id>`). You only need:
+
+- Docker running on the remote host with GPU runtime available.
+- The specified image present on the remote (via registry pull or `docker load`).
+- SSH connectivity and permissions to run Docker.
+
+### Paths and artifacts
+
+- The training code (`cloud/training_entrypoint.py`) loads device info from `../configs/hardware.json` relative to the `cloud/` folder — with the provided Dockerfile, this maps to the remote path `~/qcraft_remote/configs` via the volume.
+- Artifacts are written under `/workspace/qcraft/outputs` in the container and thus to `~/qcraft_remote/artifacts/<job_id>` on the remote.
+- Use the GUI’s **Download Artifacts** to fetch results locally (requires `scp` on your system and the same SSH settings).
+
+### Troubleshooting
+
+- If you see `NOT_FOUND` status immediately, the GUI could not find the job in `docker inspect`. Ensure the image name is correct and the remote host can run Docker.
+- If GPU is not detected, verify `nvidia-smi` works on the host and `docker run --gpus all nvidia/cuda:12.1.1-base nvidia-smi` succeeds.
+
 ## Updates (Oct 1, 2025)
 
 - Packaging now relies on `MANIFEST.in` for resources. Optional extras added in `setup.py`:
