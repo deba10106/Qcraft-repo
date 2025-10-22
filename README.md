@@ -274,7 +274,9 @@ python -c "from circuit_designer.gui_main import main; main()"
    - **Remote Base Dir** (e.g., `~/qcraft_remote`). The trainer will create:
      - `~/qcraft_remote/configs` (uploaded configs mount)
      - `~/qcraft_remote/artifacts/<job_id>` (outputs mount)
-   - (Optional) **Local Config Dir** (a folder on your machine that contains configs like `configs/hardware.json`).
+   - (Optional) **Local Config Dir**. Point this to your local `configs/` folder. All files in this folder are uploaded to `~/qcraft_remote/configs` and will override the defaults inside the container at runtime. This includes:
+     - YAML files (e.g., `optimizer_config.yaml`, `multi_patch_rl_agent.yaml`, etc.)
+     - JSON files like `hardware.json` (provider/device selection). The training reads `cloud/../configs/hardware.json`, which resolves to the uploaded file.
 4. Click **Upload Configs** (optional) to copy your Local Config Dir to `~/qcraft_remote/configs` on the remote.
 5. Click **Start Training**.
    - The GUI will SSH to the host, ensure directories exist, and run:
@@ -292,7 +294,7 @@ No. The GUI starts and stops the container over SSH automatically (it runs `dock
 
 ### Paths and artifacts
 
-- The training code (`cloud/training_entrypoint.py`) loads device info from `../configs/hardware.json` relative to the `cloud/` folder — with the provided Dockerfile, this maps to the remote path `~/qcraft_remote/configs` via the volume.
+- The training code (`cloud/training_entrypoint.py`) loads device info from `../configs/hardware.json` relative to the `cloud/` folder — with the provided Dockerfile, this maps to the remote path `~/qcraft_remote/configs` via the volume. If you upload a custom `hardware.json`, it is used instead of the image default.
 - Artifacts are written under `/workspace/qcraft/outputs` in the container and thus to `~/qcraft_remote/artifacts/<job_id>` on the remote.
 - Use the GUI’s **Download Artifacts** to fetch results locally (requires `scp` on your system and the same SSH settings).
 
@@ -300,6 +302,116 @@ No. The GUI starts and stops the container over SSH automatically (it runs `dock
 
 - If you see `NOT_FOUND` status immediately, the GUI could not find the job in `docker inspect`. Ensure the image name is correct and the remote host can run Docker.
 - If GPU is not detected, verify `nvidia-smi` works on the host and `docker run --gpus all nvidia/cuda:12.1.1-base nvidia-smi` succeeds.
+
+### CUDA/Torch compatibility for Docker builds
+
+Both SSH and Vertex AI Dockerfiles pin PyTorch to a CUDA-specific wheel so GPU works reliably.
+
+- Files: `docker/Dockerfile.ssh`, `docker/Dockerfile.gpu`
+- Defaults:
+  - `ARG BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04` (CUDA 12.1)
+  - `ARG CUDA_SUFFIX=cu121`
+  - `ARG TORCH_VERSION=2.4.0`
+- Build with overrides to match your target CUDA runtime:
+
+```bash
+# Example for CUDA 12.1 (SSH image)
+docker build -f docker/Dockerfile.ssh \
+  --build-arg TORCH_VERSION=2.4.0 \
+  --build-arg CUDA_SUFFIX=cu121 \
+  --build-arg BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 \
+  -t yourrepo/qcraft-gpu:cu121-2.4.0 .
+
+# Example for Vertex AI image (same args)
+docker build -f docker/Dockerfile.gpu \
+  --build-arg TORCH_VERSION=2.4.0 \
+  --build-arg CUDA_SUFFIX=cu121 \
+  --build-arg BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 \
+  -t yourrepo/qcraft-gpu-vertex:cu121-2.4.0 .
+```
+
+- Verify inside the container:
+
+```bash
+docker run --rm --gpus all yourrepo/qcraft-gpu:cu121-2.4.0 \
+  python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda, torch.__version__)"
+```
+
+- Note: `requirements.txt` is pinned for local reproducibility. Dockerfiles intentionally re-install
+  a CUDA-specific `torch==${TORCH_VERSION}` from `https://download.pytorch.org/whl/${CUDA_SUFFIX}` to ensure GPU compatibility, overriding the local pin if different.
+
+## How to Build (match CUDA on your machine/remote)
+
+Follow these steps to build an image that matches the CUDA version on your local or remote GPU host.
+
+1. **Check remote/local CUDA**
+
+```bash
+ssh user@gpu.example.com nvidia-smi   # look at the CUDA Version line
+```
+
+2. **Pick compatible base + Torch wheel**
+
+- CUDA 11.8: `BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04`, `CUDA_SUFFIX=cu118`
+- CUDA 12.1: `BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04`, `CUDA_SUFFIX=cu121`
+- CUDA 12.4: `BASE_IMAGE=nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04`, `CUDA_SUFFIX=cu124`
+
+3. **Build SSH trainer image**
+
+```bash
+docker build -f docker/Dockerfile.ssh \
+  --build-arg BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 \
+  --build-arg CUDA_SUFFIX=cu121 \
+  --build-arg TORCH_VERSION=2.4.0 \
+  -t yourrepo/qcraft-gpu:cu121-2.4.0 .
+```
+
+4. **Build Vertex AI image**
+
+```bash
+docker build -f docker/Dockerfile.gpu \
+  --build-arg BASE_IMAGE=nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 \
+  --build-arg CUDA_SUFFIX=cu121 \
+  --build-arg TORCH_VERSION=2.4.0 \
+  -t yourrepo/qcraft-gpu-vertex:cu121-2.4.0 .
+```
+
+5. **Verify GPU in the built image**
+
+```bash
+docker run --rm --gpus all yourrepo/qcraft-gpu:cu121-2.4.0 \
+  python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda, torch.__version__)"
+```
+
+6. **Make image available on remote**
+
+- Push to registry then `docker pull` on remote, or `docker save` + `scp` + `docker load`.
+
+7. **Optional: local pip install with matching Torch**
+
+When not using Docker, install a CUDA-matched torch via extras defined in `setup.py`:
+
+```bash
+# CPU-only
+pip install -e .[torch-cpu]
+
+# CUDA 12.1
+pip install -e .[torch-cu121] --extra-index-url https://download.pytorch.org/whl/cu121
+```
+
+## Developer setup (tests)
+
+- Install dev extras pinned in `setup.py`:
+
+```bash
+pip install -e .[dev]
+```
+
+- Or use the pinned file `requirements-dev.txt`:
+
+```bash
+pip install -r requirements-dev.txt
+```
 
 ## Updates (Oct 1, 2025)
 
