@@ -71,6 +71,11 @@ class SurfaceCodeEnvironment(gym.Env):
             self.curriculum_config = {}
             self.use_curriculum = False
             self.phases = [{}]
+        # Ensure phases is non-empty to avoid index errors during success checks
+        if not self.phases:
+            self.phases = [{}]
+            self.use_curriculum = False
+            self.current_phase = 0
         
         # Setup hardware graph
         self._setup_hardware_graph()
@@ -533,9 +538,13 @@ class SurfaceCodeEnvironment(gym.Env):
 
     def _is_successful_mapping(self) -> bool:
         """Check if the current mapping is considered successful."""
-        # Current phase success criteria
-        phase = self.phases[self.current_phase]
-        criteria = phase.get('criteria', {})
+        # Current phase success criteria (guard against empty or out-of-range)
+        if not self.phases:
+            criteria = {}
+        else:
+            idx = min(max(0, self.current_phase), len(self.phases) - 1)
+            phase = self.phases[idx]
+            criteria = phase.get('criteria', {})
         
         # Check connectivity score against threshold
         connectivity_score = self._calculate_connectivity_score()
