@@ -13,8 +13,13 @@ RUN python3 -m pip install --upgrade pip
 
 WORKDIR /opt/ml/code
 COPY requirements.txt ./
-RUN pip install -r requirements.txt \
-    && pip install torch --index-url https://download.pytorch.org/whl/cu121 || true
+
+# Pin Torch to CUDA-compatible wheel (matches BASE_IMAGE CUDA)
+# Override at build time when needed: --build-arg TORCH_VERSION=2.4.0 --build-arg CUDA_SUFFIX=cu121
+ARG TORCH_VERSION=2.4.0
+ARG CUDA_SUFFIX=cu121
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/${CUDA_SUFFIX} torch==${TORCH_VERSION}
 
 COPY . .
 ENV PYTHONPATH=/opt/ml/code

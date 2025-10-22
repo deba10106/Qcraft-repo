@@ -15,8 +15,13 @@ RUN python3 -m pip install --upgrade pip
 # - outputs written to ./outputs -> /workspace/qcraft/outputs
 WORKDIR /workspace/qcraft
 COPY requirements.txt ./
-RUN pip install -r requirements.txt \
-    && pip install torch --index-url https://download.pytorch.org/whl/cu121 || true
+
+# Pin Torch to CUDA-compatible wheel
+# You can override these at build time: --build-arg TORCH_VERSION=2.4.0 --build-arg CUDA_SUFFIX=cu121
+ARG TORCH_VERSION=2.4.0
+ARG CUDA_SUFFIX=cu121
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/${CUDA_SUFFIX} torch==${TORCH_VERSION}
 
 COPY . .
 ENV PYTHONPATH=/workspace/qcraft
