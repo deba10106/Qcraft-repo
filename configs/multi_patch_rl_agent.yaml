@@ -54,7 +54,7 @@ multi_patch_rl_agent:
         code_distance: 3
         layout_type: rotated
         max_steps: 200
-        total_timesteps: 100000
+        total_timesteps: 98304
         reward_weights:
           connectivity_bonus: 0.2
           adjacency_bonus: 0.2
@@ -65,7 +65,7 @@ multi_patch_rl_agent:
         code_distance: 3
         layout_type: rotated
         max_steps: 300
-        total_timesteps: 200000
+        total_timesteps: 198656
         reward_weights:
           connectivity_bonus: 0.5
           adjacency_bonus: 0.5
@@ -76,7 +76,7 @@ multi_patch_rl_agent:
         code_distance: 3
         layout_type: rotated
         max_steps: 400
-        total_timesteps: 300000
+        total_timesteps: 299008
         reward_weights:
           connectivity_bonus: 1.0
           adjacency_bonus: 1.0

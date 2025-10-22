@@ -342,7 +342,12 @@ class SurfaceCodeEnvironment(gym.Env):
         # Calculate reward
         mapping_info = self._gather_mapping_info_multi_patch()
         is_inference = getattr(self, 'inference_mode', False)
-        reward, reward_breakdown = self.reward_engine.compute_reward(mapping_info, env_info={}, is_inference=is_inference)
+        reward, reward_breakdown = self.reward_engine.compute_reward(
+            mapping_info,
+            env_info={},
+            current_phase=min(max(0, self.current_phase), len(getattr(self, 'phases', []) or [{}]) - 1),
+            is_inference=is_inference,
+        )
         # Check if episode is done
         done = self._is_episode_done_multi_patch()
         # Update action masks
@@ -493,8 +498,12 @@ class SurfaceCodeEnvironment(gym.Env):
             for a_type in range(3):
                 for q1 in sc_qubits:
                     for q2 in sc_qubits:
-                        if q1 != q2:
-                            action_masks[i, a_type, q1, q2] = 1.0
+                        if q1 == q2:
+                            continue
+                        # Bounds guard to avoid out-of-range indices
+                        if not (0 <= int(q1) < max_qubits and 0 <= int(q2) < max_qubits):
+                            continue
+                        action_masks[i, a_type, int(q1), int(q2)] = 1.0
         # Flatten patch dimension
         action_masks_flat = action_masks.reshape(patch_count * 3, max_qubits, max_qubits)
         return action_masks_flat
