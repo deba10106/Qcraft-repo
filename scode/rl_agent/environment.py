@@ -451,27 +451,40 @@ class SurfaceCodeEnvironment(gym.Env):
         patch_count = self.patch_count
         node_features = np.zeros((patch_count, max_qubits, NUM_FEATURES), dtype=np.float32)
         adjacency = np.zeros((patch_count, max_qubits, max_qubits), dtype=np.float32)
+        # Build features/adjacency from hardware graph and current SC->HW mappings
         for i, code in enumerate(self.surface_codes):
-            for hw_q in code.qubit_layout:
-                if hw_q >= max_qubits:
+            mapping_i = self.current_mappings[i] if i < len(self.current_mappings) else {}
+            # Feature[0]: hardware readout error_rate per HW node
+            for hw_q in self.hw_graph.nodes():
+                if not (0 <= int(hw_q) < max_qubits):
                     continue
-                error_rate = code.qubit_layout[hw_q].get('error_rate', 0.0)
-                node_features[i, hw_q, 0] = error_rate
-                qubit_type_idx = 4  # Default to unassigned
-                for sc_q, hw_map_q in self.current_mappings[i].items():
-                    if hw_map_q == hw_q:
-                        sc_type = code.qubit_layout[sc_q].get('type', '')
-                        if sc_type == 'data':
-                            qubit_type_idx = 1
-                        elif sc_type == 'ancilla_X':
-                            qubit_type_idx = 2
-                        elif sc_type == 'ancilla_Z':
-                            qubit_type_idx = 3
-                        break
-                node_features[i, hw_q, qubit_type_idx] = 1.0
-                for neighbor in self.hw_graph.neighbors(hw_q):
-                    if neighbor < max_qubits:
-                        adjacency[i, hw_q, neighbor] = 1.0
+                try:
+                    err = self.hw_graph.nodes[int(hw_q)].get('error_rate', 0.0)
+                except Exception:
+                    err = 0.0
+                node_features[i, int(hw_q), 0] = float(err)
+            # One-hot roles per mapped SC qubit
+            for sc_q, hw_q in mapping_i.items():
+                if not (0 <= int(hw_q) < max_qubits):
+                    continue
+                sc_type = ''
+                try:
+                    sc_type = code.qubit_layout.get(sc_q, {}).get('type', '')
+                except Exception:
+                    sc_type = ''
+                role_idx = 4
+                if sc_type == 'data':
+                    role_idx = 1
+                elif sc_type == 'ancilla_X':
+                    role_idx = 2
+                elif sc_type == 'ancilla_Z':
+                    role_idx = 3
+                node_features[i, int(hw_q), role_idx] = 1.0
+            # Hardware adjacency
+            for u, v in self.hw_graph.edges():
+                if 0 <= int(u) < max_qubits and 0 <= int(v) < max_qubits:
+                    adjacency[i, int(u), int(v)] = 1.0
+                    adjacency[i, int(v), int(u)] = 1.0
         action_masks = self._get_action_masks_multi_patch()
         # Flatten patch dimension
         node_features_flat = node_features.reshape(patch_count * max_qubits, NUM_FEATURES)

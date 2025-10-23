@@ -126,6 +126,14 @@ def decompose_to_native_gates(circuit: dict, native_gates: set) -> dict:
         Circuit dict with all gates in native_gates
     """
     import math
+    # Normalize native gate names to lowercase and add common synonyms
+    native = set(g.lower() for g in (native_gates or set()))
+    # Treat 'cnot' and 'cx' as synonyms
+    if 'cnot' in native and 'cx' not in native:
+        native.add('cx')
+    if 'cx' in native and 'cnot' not in native:
+        native.add('cnot')
+    # Treat 'cz' uppercase variations implicitly covered by lowercase
     decomposed_gates = []
     for gate in circuit.get('gates', []):
         name = gate['name'].lower()
@@ -134,7 +142,7 @@ def decompose_to_native_gates(circuit: dict, native_gates: set) -> dict:
         # Always allow measure gates (any case)
         if name == 'measure':
             decomposed_gates.append(gate)
-        elif name in native_gates:
+        elif name in native:
             decomposed_gates.append(gate)
         elif name == 'h':
             decomposed_gates.extend([
@@ -154,13 +162,13 @@ def decompose_to_native_gates(circuit: dict, native_gates: set) -> dict:
             ])
         elif name == 'z':
             decomposed_gates.append({'name': 'rz', 'qubits': qubits, 'params': [math.pi]})
-        elif name == 'x' and 'sx' in native_gates:
+        elif name == 'x' and 'sx' in native:
             # x = sx sx if only sx is native
             decomposed_gates.extend([
                 {'name': 'sx', 'qubits': qubits, 'params': []},
                 {'name': 'sx', 'qubits': qubits, 'params': []},
             ])
-        elif name == 'swap' and 'cx' in native_gates:
+        elif name == 'swap' and 'cx' in native:
             # SWAP(q0, q1) = CX(q0,q1) CX(q1,q0) CX(q0,q1)
             q0, q1 = qubits
             decomposed_gates.extend([
@@ -169,6 +177,6 @@ def decompose_to_native_gates(circuit: dict, native_gates: set) -> dict:
                 {'name': 'cx', 'qubits': [q0, q1], 'params': []},
             ])
         else:
-            raise ValueError(f"No decomposition for gate '{name}' to native gates {native_gates}")
+            raise ValueError(f"No decomposition for gate '{name}' to native gates {native}")
     circuit['gates'] = decomposed_gates
     return circuit

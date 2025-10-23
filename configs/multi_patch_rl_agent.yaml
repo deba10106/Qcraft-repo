@@ -4,8 +4,6 @@
 multi_patch_rl_agent:
   environment:
     code_family: surface  # options: surface, qldpc
-    provider: ibm
-    device: ibm_hummingbird
     patch_count: 2
     seed: 42
   agent:

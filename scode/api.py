@@ -98,6 +98,19 @@ class SurfaceCodeAPI:
                 print("[WARNING][API INIT] reward_function missing after merge, loading from base_config!")
             self.config['reward_function'] = base_config.get('reward_function', {})
         self.surface_code_config = self.config.get('multi_patch_rl_agent', {}).get('environment', {})
+        # Enforce provider/device coming from hardware.json only
+        try:
+            env_cfg = self.config.get('multi_patch_rl_agent', {}).get('environment', {})
+            if 'provider' in env_cfg or 'device' in env_cfg:
+                env_cfg.pop('provider', None)
+                env_cfg.pop('device', None)
+                # Best-effort log
+                try:
+                    self.logger.log_event('config_sanitized', {'removed_fields': ['provider','device'], 'module': 'multi_patch_rl_agent.environment'}, level='WARNING')
+                except Exception:
+                    print("[WARNING][API INIT] Removed provider/device from multi_patch_rl_agent.environment; values must come from hardware.json")
+        except Exception:
+            pass
         self.advanced_constraints = self.config.get('advanced_constraints', {})
         # Load device info using DeviceAbstraction
         hardware_json_path = ConfigManager.config_registry['hardware']
@@ -684,10 +697,22 @@ class SurfaceCodeAPI:
         mp_config = config.get('multi_patch_rl_agent', {})
         agent_config = mp_config.get('agent', {})
         env_config = mp_config.get('environment', {})
-        if device is None:
-            device = self.hardware_info.get('device_name', 'ibm_hummingbird')
-        if provider is None:
-            provider = self.hardware_info.get('provider_name', 'ibm')
+        # Enforce provider/device exclusively from hardware.json; ignore args if provided
+        hw_provider = self.hardware_info.get('provider_name', 'ibm')
+        hw_device = self.hardware_info.get('device_name', 'ibm_hummingbird')
+        if (provider and provider != hw_provider) or (device and device != hw_device):
+            try:
+                self.logger.log_event('deprecated_args_ignored', {
+                    'message': 'provider/device args ignored; using hardware.json values',
+                    'arg_provider': provider,
+                    'arg_device': device,
+                    'hw_provider': hw_provider,
+                    'hw_device': hw_device
+                }, level='WARNING')
+            except Exception:
+                print(f"[WARNING][TRAIN] provider/device args ignored; using hardware.json values: provider={hw_provider}, device={hw_device}")
+        provider = hw_provider
+        device = hw_device
         if layout_type is None:
             layout_type = self.list_layout_types()[0]
         if code_distance is None:

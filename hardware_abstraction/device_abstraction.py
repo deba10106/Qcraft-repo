@@ -252,6 +252,27 @@ class DeviceAbstraction:
         # Ensure native_gates present
         if 'native_gates' not in d or not isinstance(d['native_gates'], list):
             d['native_gates'] = d.get('native_gates', []) or []
+        # Normalize native_gates: lowercase, deduplicate, canonicalize synonyms
+        try:
+            gates = [str(g) for g in d.get('native_gates', [])]
+            lower = [g.lower() for g in gates]
+            # Canonical synonym map
+            canon = []
+            for g in lower:
+                if g == 'cnot':
+                    canon.append('cx')
+                else:
+                    canon.append(g)
+            # Deduplicate preserving order
+            seen = set()
+            normalized = []
+            for g in canon:
+                if g not in seen:
+                    seen.add(g)
+                    normalized.append(g)
+            d['native_gates'] = normalized
+        except Exception:
+            pass
         return d
 
     @staticmethod
@@ -318,9 +339,14 @@ class DeviceAbstraction:
         dev = DeviceAbstraction.get_device_info(provider_name, device_name)
         if len(circuit.get('qubits', [])) > dev.get('max_qubits', 0):
             return False
-        native_gates = set(dev.get('native_gates', []))
+        # Case-insensitive, canonical comparison
+        raw = [str(g) for g in dev.get('native_gates', [])]
+        lower = [g.lower() for g in raw]
+        canon_native = set('cx' if g == 'cnot' else g for g in lower)
         for gate in circuit.get('gates', []):
-            if gate['name'] not in native_gates:
+            gname = str(gate.get('name', '')).lower()
+            gname = 'cx' if gname == 'cnot' else gname
+            if gname not in canon_native:
                 return False
         # Optionally check connectivity here
         return True

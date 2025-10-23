@@ -414,7 +414,8 @@ class QuantumWorkflowBridge:
             if adjusted != total_timesteps and log_callback:
                 log_callback(f"[INFO] Adjusted optimizer total_timesteps from {total_timesteps} to {adjusted} (rollout_size={rollout_size})", None)
             total_timesteps = adjusted
-        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048, device='auto')
+        device_choice = rl_env_conf.get('torch_device', 'auto')
+        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048, device=device_choice)
         # Progress callback for logging
         class ProgressCallback:
             def __init__(self, total, logger, run_id, start_time, log_callback):
@@ -672,11 +673,14 @@ class QuantumWorkflowBridge:
                 artifact_dir = training_artifacts_cfg.get('output_dir', './outputs/training_artifacts')
                 artifact_naming = training_artifacts_cfg.get('artifact_naming', '{provider}_{device}_{layout_type}_d{code_distance}_patches{patch_count}_stage{curriculum_stage}_sb3_ppo_surface_code_{timestamp}.zip')
                 env_cfg_final = config['multi_patch_rl_agent']['environment']
+                # Use provider/device from hardware.json
+                provider = (hardware_graph.get('provider_name') or 'provider') if isinstance(hardware_graph, dict) else 'provider'
+                device = (hardware_graph.get('device_name') or 'device') if isinstance(hardware_graph, dict) else 'device'
                 # Use the current local time from the user context
                 timestamp = '20250610_153447'  # 2025-06-10T15:34:47+08:00
                 artifact_name = artifact_naming.format(
-                    provider=env_cfg_final.get('provider', 'provider'),
-                    device=env_cfg_final.get('device', 'device'),
+                    provider=str(provider).lower(),
+                    device=str(device).lower(),
                     layout_type=env_cfg_final.get('layout_type', 'rotated'),
                     code_distance=env_cfg_final.get('code_distance', 3),
                     patch_count=env_cfg_final.get('patch_count', 1),
