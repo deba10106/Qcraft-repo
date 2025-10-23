@@ -79,9 +79,12 @@ class ProgressBarCallback(BaseCallback):
 
     def update(self, step, reward=None, ler=None):
         now = time.time()
-        progress = step / self.total_steps
+        # Clamp step/progress to prevent >100% display when SB3 overshoots by a rollout chunk
+        capped_step = min(max(0, int(step)), int(self.total_steps))
+        progress = min(1.0, capped_step / self.total_steps if self.total_steps > 0 else 0.0)
         elapsed = now - self.start_time
-        eta = (elapsed / progress - elapsed) if progress > 0 else 0
+        # Avoid negative ETA; if at 100% or progress==0, ETA is 0
+        eta = (elapsed / progress - elapsed) if 0 < progress < 1 else 0
         eta_str = time.strftime('%H:%M:%S', time.gmtime(eta)) if progress > 0 else 'N/A'
         elapsed_str = time.strftime('%H:%M:%S', time.gmtime(elapsed))
         self.last_step = step
@@ -93,13 +96,17 @@ class ProgressBarCallback(BaseCallback):
         ler_str = f'LER: {self.last_ler:.3e}' if self.last_ler is not None else ''
         # Terminal progress bar
         filled_len = int(self.bar_length * progress)
-        bar = '=' * filled_len + '>' + ' ' * (self.bar_length - filled_len - 1)
+        # If complete, fill the bar fully without arrow
+        if progress >= 1.0:
+            bar = '=' * self.bar_length
+        else:
+            bar = '=' * filled_len + '>' + ' ' * (self.bar_length - filled_len - 1)
         sys.stdout.write(
-            f'\r[{bar}] {progress*100:6.2f}% | Step: {step}/{self.total_steps} | Elapsed: {elapsed_str} | ETA: {eta_str} | {reward_str} {ler_str}   '
+            f'\r[{bar}] {progress*100:6.2f}% | Step: {capped_step}/{self.total_steps} | Elapsed: {elapsed_str} | ETA: {eta_str} | {reward_str} {ler_str}   '
         )
         sys.stdout.flush()
         progress_info = {
-            "step": step,
+            "step": capped_step,
             "total_steps": self.total_steps,
             "reward": self.last_reward,
             "ler": self.last_ler,

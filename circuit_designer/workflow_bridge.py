@@ -402,7 +402,20 @@ class QuantumWorkflowBridge:
         else:
             raise ValueError(f"Unsupported vectorization strategy: {vec_strategy} with n_envs={n_envs}")
         total_timesteps = rl_env_conf.get('num_episodes', 10000) * 200
-        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048, device='auto')
+        # Align to rollout size (use model's n_steps and assumed n_envs=1 here)
+        try:
+            rollout_size = int(rl_env_conf.get('n_steps', 2048)) * int(rl_env_conf.get('n_envs', 1))
+        except Exception:
+            rollout_size = 2048
+        if rollout_size > 0:
+            adjusted = (int(total_timesteps) // rollout_size) * rollout_size
+            if adjusted <= 0:
+                adjusted = rollout_size
+            if adjusted != total_timesteps and log_callback:
+                log_callback(f"[INFO] Adjusted optimizer total_timesteps from {total_timesteps} to {adjusted} (rollout_size={rollout_size})", None)
+            total_timesteps = adjusted
+        device_choice = rl_env_conf.get('torch_device', 'auto')
+        model = PPO('MlpPolicy', env, verbose=1, batch_size=rl_env_conf.get('batch_size', 64), n_steps=2048, device=device_choice)
         # Progress callback for logging
         class ProgressCallback:
             def __init__(self, total, logger, run_id, start_time, log_callback):
@@ -415,19 +428,23 @@ class QuantumWorkflowBridge:
                 self.last_reward = None
             def __call__(self, locals_, globals_):
                 n = locals_['self'].num_timesteps
-                progress = n / self.total
+                capped_n = min(max(0, int(n)), int(self.total))
+                progress = min(1.0, capped_n / self.total if self.total > 0 else 0.0)
                 elapsed = time.time() - self.start_time
                 # Log metrics
-                self.logger.log_metric('optimizer_progress', progress, step=n, run_id=self.run_id)
+                self.logger.log_metric('optimizer_progress', progress, step=capped_n, run_id=self.run_id)
                 rewards = locals_.get('rewards', [])
                 if rewards is not None and len(rewards) > 0:
                     self.last_reward = sum(rewards) / len(rewards)
-                    self.logger.log_metric('optimizer_reward', self.last_reward, step=n, run_id=self.run_id)
+                    self.logger.log_metric('optimizer_reward', self.last_reward, step=capped_n, run_id=self.run_id)
                 if self.log_callback:
-                    msg = f"Progress: {n}/{self.total}, Reward: {self.last_reward}, Elapsed: {elapsed:.1f}s"
+                    msg = f"Progress: {capped_n}/{self.total}, Reward: {self.last_reward}, Elapsed: {elapsed:.1f}s"
                     self.log_callback(msg, progress)
                 if n - self.last >= 200:
                     self.last = n
+                # Stop training cleanly once target reached to avoid >100% due to rollout granularity
+                if n >= self.total:
+                    return False
                 return True
         model.learn(total_timesteps=total_timesteps, callback=ProgressCallback(total_timesteps, logger, run_id, start_time, log_callback))
         artifacts_dir = config.get('system', {}).get('output_dir', './outputs')
@@ -577,6 +594,11 @@ class QuantumWorkflowBridge:
                     log_callback(f"[INFO] Curriculum stage {stage_idx+1}/{len(stages)}: {stage}", None)
                 env_cfg_stage = env_cfg.copy()
                 env_cfg_stage['patch_count'] = stage['patch_count']
+                # Propagate stage-specific layout and distance for env and artifact naming
+                if 'code_distance' in stage:
+                    env_cfg_stage['code_distance'] = stage['code_distance']
+                if 'layout_type' in stage:
+                    env_cfg_stage['layout_type'] = stage['layout_type']
                 config['multi_patch_rl_agent']['environment'] = env_cfg_stage
                 # Choose environment by code family (default: surface)
                 env_family = (config.get('multi_patch_rl_agent', {})
@@ -598,11 +620,27 @@ class QuantumWorkflowBridge:
                         reward_engine=MultiPatchRewardEngine(config)
                     )
                 env.current_phase = stage_idx  # Ensure correct curriculum stage is used
+                # Wire per-stage max_steps into environment episode limit if provided
+                try:
+                    stage_max_steps = stage.get('max_steps')
+                    if stage_max_steps is not None:
+                        env.max_steps = int(stage_max_steps)
+                except Exception:
+                    pass
                 policy = 'MultiInputPolicy'
                 model = PPO(policy, env, **{k: v for k, v in agent_cfg.items() if k not in ['algorithm', 'policy', 'resume_from_checkpoint', 'save_interval', 'total_timesteps']})
                 if log_callback:
                     log_callback("[INFO] Agent setup complete", None)
                 total_timesteps = stage.get('total_timesteps', agent_cfg['total_timesteps'])
+                # Align to rollout size to avoid overshoot (SB3 collects in chunks)
+                rollout_size = int(agent_cfg.get('n_steps', 2048)) * int(agent_cfg.get('n_envs', 1))
+                if rollout_size > 0:
+                    adjusted = (int(total_timesteps) // rollout_size) * rollout_size
+                    if adjusted <= 0:
+                        adjusted = rollout_size
+                    if adjusted != total_timesteps and log_callback:
+                        log_callback(f"[INFO] Adjusted total_timesteps from {total_timesteps} to {adjusted} (rollout_size={rollout_size})", None)
+                    total_timesteps = adjusted
                 reporter = ProgressBarCallback(total_timesteps, mode='terminal')
                 reporter._on_training_start()
                 def progress_callback(locals_, globals_):
@@ -613,10 +651,16 @@ class QuantumWorkflowBridge:
                     lers = [info.get('ler', None) or info.get('logical_error_rate', None) for info in infos if isinstance(info, dict)]
                     lers = [ler for ler in lers if ler is not None]
                     avg_ler = sum(lers) / len(lers) if lers else None
-                    reporter.update(n, reward=avg_reward, ler=avg_ler)
+                    capped_n = min(max(0, int(n)), int(total_timesteps))
+                    reporter.update(capped_n, reward=avg_reward, ler=avg_ler)
                     if log_callback:
-                        msg = f"Step: {n}/{total_timesteps} | Reward: {avg_reward} | LER: {avg_ler}"
-                        log_callback(msg, n/total_timesteps)
+                        progress = min(1.0, capped_n / total_timesteps if total_timesteps > 0 else 0.0)
+                        msg = f"Step: {capped_n}/{total_timesteps} | Reward: {avg_reward} | LER: {avg_ler}"
+                        log_callback(msg, progress)
+                    # Stop training cleanly once target is reached (avoid >100% due to rollout granularity)
+                    if n >= total_timesteps:
+                        reporter.finish()
+                        return False
                     return True
                 if log_callback:
                     log_callback(f"[INFO] Starting training for stage {stage_idx+1}", None)
@@ -629,11 +673,14 @@ class QuantumWorkflowBridge:
                 artifact_dir = training_artifacts_cfg.get('output_dir', './outputs/training_artifacts')
                 artifact_naming = training_artifacts_cfg.get('artifact_naming', '{provider}_{device}_{layout_type}_d{code_distance}_patches{patch_count}_stage{curriculum_stage}_sb3_ppo_surface_code_{timestamp}.zip')
                 env_cfg_final = config['multi_patch_rl_agent']['environment']
+                # Use provider/device from hardware.json
+                provider = (hardware_graph.get('provider_name') or 'provider') if isinstance(hardware_graph, dict) else 'provider'
+                device = (hardware_graph.get('device_name') or 'device') if isinstance(hardware_graph, dict) else 'device'
                 # Use the current local time from the user context
                 timestamp = '20250610_153447'  # 2025-06-10T15:34:47+08:00
                 artifact_name = artifact_naming.format(
-                    provider=env_cfg_final.get('provider', 'provider'),
-                    device=env_cfg_final.get('device', 'device'),
+                    provider=str(provider).lower(),
+                    device=str(device).lower(),
                     layout_type=env_cfg_final.get('layout_type', 'rotated'),
                     code_distance=env_cfg_final.get('code_distance', 3),
                     patch_count=env_cfg_final.get('patch_count', 1),

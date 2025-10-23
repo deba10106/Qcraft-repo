@@ -42,6 +42,18 @@ class QLDPCEnvironment(gym.Env, RLMappingEnvInterface):
         self._steps = 0
         self._max_steps = int(self.config.get('rl_agent', {}).get('max_steps_per_episode', 100))
 
+    # Expose max_steps for external control (curriculum stage wiring)
+    @property
+    def max_steps(self) -> int:
+        return int(self._max_steps)
+
+    @max_steps.setter
+    def max_steps(self, value: int) -> None:
+        try:
+            self._max_steps = int(value)
+        except Exception:
+            pass
+
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self._steps = 0

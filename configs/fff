@@ -1,0 +1,3 @@
+by default, this application should detect gpu and train on it. if it fails to detect gpu, it must ask user whether to continue with cpu or not. if permission granted, only then it should proceed with training on cpu.
+
+If training on a remote server via ssh is selected, I see that if there's any issue with ssh connection or any other errors occur on the remote server, the application directly fallsback to training locally without asking for permission. fix these.

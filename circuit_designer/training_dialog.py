@@ -505,6 +505,34 @@ class TrainingDialog(QDialog):
                 self._submit_cloud_job()
                 return
 
+        # Local GPU detection: prefer GPU, prompt before CPU fallback
+        try:
+            import torch  # type: ignore
+            has_cuda = bool(getattr(torch, 'cuda', None)) and bool(torch.cuda.is_available())
+        except Exception:
+            has_cuda = False
+        if not isinstance(self.agent_config, dict):
+            self.agent_config = {}
+        self.agent_config.setdefault('rl_config', {})
+        if has_cuda:
+            self.agent_config['rl_config']['torch_device'] = 'cuda'
+        else:
+            from PySide6.QtWidgets import QMessageBox
+            resp = QMessageBox.question(
+                self,
+                "No GPU Detected",
+                "No CUDA-capable GPU detected. Do you want to continue training on CPU?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            if resp != QMessageBox.Yes:
+                self.training_in_progress = False
+                self.start_button.setEnabled(True)
+                self.stop_button.setEnabled(False)
+                self._add_log_message("[INFO] Training cancelled by user (no GPU, CPU not approved).")
+                return
+            self.agent_config['rl_config']['torch_device'] = 'cpu'
+
         def gui_log_callback(message, progress):
             self.log_signal.emit(message, progress)
             if "[ERROR]" in message or "Exception" in message or "Traceback" in message:

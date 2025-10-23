@@ -211,7 +211,11 @@ class MultiPatchMapper:
                 or self.config.get('training_artifacts', {})
             )
             artifact_dir = os.path.abspath(training_artifacts_cfg.get('output_dir', './outputs/training_artifacts'))
-            artifact_pattern = f"{provider}_{dev_name}_{layout_type_patch}_d{code_distance}_patches{patch_count}_stage*_sb3_ppo_surface_code*.zip"
+            # Match artifacts with or without an optional code_family token before layout_type.
+            # Examples we need to match:
+            #   provider_device_rotated_d3_patches2_stage1_sb3_ppo_surface_code_*.zip
+            #   provider_device_surface_rotated_d3_patches2_stage1_sb3_ppo_surface_code_*.zip
+            artifact_pattern = f"{provider}_{dev_name}_*{layout_type_patch}_d{code_distance}_patches{patch_count}_stage*_sb3_ppo_surface_code*.zip"
             search_pattern = os.path.join(artifact_dir, artifact_pattern)
             artifact_files = glob.glob(search_pattern)
             if artifact_files:

@@ -1,0 +1,23 @@
+{
+  "training_source": "Current Circuit",
+  "dataset_file_paths": [],
+  "procedural": {},
+  "rl_config": {
+    "vec_strategy": "subproc",
+    "n_envs": 4
+  },
+  "cloud": {
+    "enabled": false,
+    "project": "",
+    "region": "us-central1",
+    "bucket": "",
+    "image_uri": "",
+    "machine_type": "n1-standard-8",
+    "accelerator_type": "NVIDIA_TESLA_T4",
+    "accelerator_count": 1,
+    "dataset_gcs_uri": "",
+    "job_name": "",
+    "timeout_minutes": 0,
+    "auto_shutdown": false
+  }
+}
